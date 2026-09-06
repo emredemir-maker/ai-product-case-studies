@@ -14,6 +14,7 @@ These case studies summarize product thinking and lessons learned from selected 
 |---|---|---|
 | [QA-Inn](./qa-inn.md) | AI-supported QA testing console | Local execution, evidence-based QA, human-in-the-loop test automation |
 | [CX-Inn](./cx-inn.md) | AI-supported B2B customer experience platform | Signal-first CX, zero-survey intelligence, churn risk, human-in-the-loop action |
+| [TalentFlow](./talentflow.md) | AI-supported recruitment and candidate operations | Requirement-level evidence, focused interviews, traceable assessments, human hiring decisions |
 
 ## Product Lens
 
