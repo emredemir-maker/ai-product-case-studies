@@ -7,6 +7,10 @@ import { loadConfig } from "./config.ts";
 import { type Draft, DraftStore, type DraftStatus } from "./drafts.ts";
 import { PostizClient, PostizError } from "./postiz.ts";
 import { approveDraft, rejectDraft } from "./publish.ts";
+import { RecommendationStore } from "./recommendations.ts";
+import { RunStore, loadWatch, runReview } from "./review.ts";
+import { SnapshotStore } from "./site.ts";
+import { createUiServer } from "./ui.ts";
 import { discoverSkills } from "./skills.ts";
 
 const USAGE = `Usage: cmo <command>
@@ -17,6 +21,9 @@ const USAGE = `Usage: cmo <command>
   approve <id> [--now] [--at <ISO date>] [--channel <id>]
                             Send a draft to Postiz (scheduled, or immediately with --now)
   reject <id> [reason]      Reject a draft; the agent reads the reason on its next run
+  review                    Check the site and recent commits; save recommendations and posts
+  todo [status]             List recommendations (open | done | dismissed)
+  ui [--every <hours>]      Open the local interface; optionally run a review on an interval
   channels                  List channels connected in Postiz
   skills                    List installed skills`;
 
@@ -61,6 +68,25 @@ async function main() {
   const { positional, flags } = parseArgs(rest);
   const store = new DraftStore(config.draftsFile);
   const postiz = config.postiz ? new PostizClient(config.postiz.baseUrl, config.postiz.apiKey) : null;
+  const recommendations = new RecommendationStore(config.recommendationsFile);
+  const runs = new RunStore(config.runsFile);
+  let reviewing: ReturnType<typeof runReview> | undefined;
+  // One review at a time: the interval and the "Check now" button share the run in progress.
+  const review = (onActivity?: (line: string) => void) =>
+    (reviewing ??= runReview({
+      config,
+      brand: loadBrand(config.brandFile),
+      skills: discoverSkills(config.skillsDir),
+      drafts: store,
+      postiz,
+      watch: loadWatch(config.watchFile),
+      recommendations,
+      snapshots: new SnapshotStore(config.snapshotsDir),
+      runs,
+      onActivity,
+    }).finally(() => {
+      reviewing = undefined;
+    }));
 
   switch (command) {
     case "plan": {
@@ -102,6 +128,43 @@ async function main() {
     case "reject": {
       const draft = rejectDraft(store, requireArg(positional[0], "draft id"), positional.slice(1).join(" ") || undefined);
       console.log(`Rejected ${draft.id}.`);
+      break;
+    }
+    case "review": {
+      const run = await review((line) => console.error(`  · ${line}`));
+      console.log(`\n${run.summary}\n`);
+      for (const problem of run.problems) console.error(`Warning: ${problem}`);
+      console.log(`${run.pagesChecked} pages checked, ${run.recommendationIds.length} recommendation(s), ${run.draftIds.length} post(s). See: cmo todo, or cmo ui`);
+      break;
+    }
+    case "todo": {
+      const status = (positional[0] ?? "open") as "open" | "done" | "dismissed";
+      if (!["open", "done", "dismissed"].includes(status)) throw new Error(`Unknown status: ${status}`);
+      const list = recommendations.list(status);
+      for (const r of list) console.log(`${r.id}  ${r.priority.padEnd(6)}  ${r.area.padEnd(7)}  ${r.title}\n        ${r.action.replace(/\s+/g, " ").slice(0, 200)}\n`);
+      if (!list.length) console.log(`No ${status} recommendations.`);
+      break;
+    }
+    case "ui": {
+      const canReview = fs.existsSync(config.watchFile);
+      const server = createUiServer({
+        drafts: store,
+        recommendations,
+        runs,
+        postiz,
+        site: canReview ? new URL(loadWatch(config.watchFile).site.url).origin : null,
+        review: canReview ? () => review() : undefined,
+      });
+      server.listen(config.uiPort, "127.0.0.1", () => console.log(`Growth desk: http://localhost:${config.uiPort}`));
+      if (flags.every !== undefined) {
+        const hours = Number(flags.every);
+        if (!canReview || !(hours >= 1)) throw new Error("--every needs a number of hours (1 or more) and a watch.json");
+        const tick = () => review().then((r) => console.log(`Review done: ${r.recommendationIds.length} recommendation(s)`), (e) => console.error(`Review failed: ${e instanceof Error ? e.message : e}`));
+        // Run now only when the last review is older than the interval, so restarts don't re-run it.
+        const last = runs.latest();
+        if (!last || Date.now() - new Date(last.at).getTime() > hours * 3_600_000) void tick();
+        setInterval(tick, hours * 3_600_000);
+      }
       break;
     }
     case "channels": {

@@ -3,3 +3,4 @@ data/
 .env
 brand.json
 skills/vendor/
+watch.json

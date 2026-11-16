@@ -1,6 +1,4 @@
-import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
+import { JsonList, newId } from "./store.ts";
 
 export type DraftStatus = "pending" | "scheduled" | "rejected";
 
@@ -27,9 +25,13 @@ export interface Draft {
 
 export type NewDraft = Pick<Draft, "platform" | "integrationId" | "content" | "scheduledAt" | "rationale" | "settings">;
 
-/** JSON-file store for drafts. Single process; every write rewrites the file atomically. */
+/** The review queue of posts. */
 export class DraftStore {
-  constructor(private readonly file: string) {}
+  private readonly file: JsonList<Draft>;
+
+  constructor(file: string) {
+    this.file = new JsonList(file);
+  }
 
   list(status?: DraftStatus): Draft[] {
     const all = this.read();
@@ -44,10 +46,7 @@ export class DraftStore {
 
   create(input: NewDraft): Draft {
     const all = this.read();
-    let id: string;
-    do id = crypto.randomBytes(3).toString("hex");
-    while (all.some((d) => d.id === id));
-    const draft: Draft = { ...input, id, status: "pending", createdAt: new Date().toISOString() };
+    const draft: Draft = { ...input, id: newId(all), status: "pending", createdAt: new Date().toISOString() };
     this.write([...all, draft]);
     return draft;
   }
@@ -63,14 +62,10 @@ export class DraftStore {
   }
 
   private read(): Draft[] {
-    if (!fs.existsSync(this.file)) return [];
-    return JSON.parse(fs.readFileSync(this.file, "utf8")) as Draft[];
+    return this.file.read();
   }
 
   private write(drafts: Draft[]): void {
-    fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    const tmp = `${this.file}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(drafts, null, 2));
-    fs.renameSync(tmp, this.file);
+    this.file.write(drafts);
   }
 }

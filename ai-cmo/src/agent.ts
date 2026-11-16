@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
+import type { BetaRunnableTool } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
 import { z } from "zod";
 import { type Brand, renderBrand } from "./brand.ts";
 import type { Config } from "./config.ts";
@@ -163,20 +164,23 @@ export function buildTools(deps: AgentDeps, savedIds: string[] = []) {
 
 function describeToolCall(name: string, input: unknown): string {
   const args = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
-  const detail = args.name ?? args.platform ?? args.channel_id ?? args.query ?? args.status ?? "";
+  const detail = args.name ?? args.platform ?? args.channel_id ?? args.query ?? args.url ?? args.title ?? args.status ?? "";
   return detail ? `${name} (${String(detail)})` : name;
 }
 
-/** Runs the agent on one brief. Drafts are written to the store as it works. */
-export async function runAgent(brief: string, deps: AgentDeps): Promise<AgentResult> {
-  const client = deps.client ?? new Anthropic();
-  const savedIds: string[] = [];
-  const tools = buildTools(deps, savedIds);
+export interface LoopInput {
+  system: string;
+  tools: BetaRunnableTool<any>[];
+  user: string;
+}
 
+/** Runs one agent loop to completion and returns the final text. */
+export async function runLoop(deps: Pick<AgentDeps, "config" | "client" | "onActivity">, input: LoopInput) {
+  const client = deps.client ?? new Anthropic();
   const runner = client.beta.messages.toolRunner({
     model: deps.config.model,
     max_tokens: 16000,
-    max_iterations: 40,
+    max_iterations: 60,
     // Full history on every turn: a plain stateless request, with the stable prefix cached.
     thread: false,
     cache_control: { type: "ephemeral" },
@@ -184,10 +188,10 @@ export async function runAgent(brief: string, deps: AgentDeps): Promise<AgentRes
     // If the model declines a request, the API re-runs it on a fallback model in the same call.
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
-    system: buildSystemPrompt(deps.brand, deps.skills),
-    tools: [...tools, ...(deps.config.webSearch ? [{ type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 8 }] : [])],
+    system: input.system,
+    tools: [...input.tools, ...(deps.config.webSearch ? [{ type: "web_search_20260209" as const, name: "web_search" as const, max_uses: 8 }] : [])],
     // The date goes in the user turn so the system prompt stays byte-identical across runs.
-    messages: [{ role: "user", content: `Today is ${new Date().toISOString()}.\n\nBrief: ${brief}` }],
+    messages: [{ role: "user", content: `Today is ${new Date().toISOString()}.\n\n${input.user}` }],
   });
 
   let last: Anthropic.Beta.BetaMessage | undefined;
@@ -206,5 +210,16 @@ export async function runAgent(brief: string, deps: AgentDeps): Promise<AgentRes
     .map((b) => b.text)
     .join("\n")
     .trim();
-  return { text, stopReason: last.stop_reason, draftIds: savedIds };
+  return { text, stopReason: last.stop_reason };
+}
+
+/** Runs the agent on one brief. Drafts are written to the store as it works. */
+export async function runAgent(brief: string, deps: AgentDeps): Promise<AgentResult> {
+  const draftIds: string[] = [];
+  const result = await runLoop(deps, {
+    system: buildSystemPrompt(deps.brand, deps.skills),
+    tools: buildTools(deps, draftIds),
+    user: `Brief: ${brief}`,
+  });
+  return { ...result, draftIds };
 }

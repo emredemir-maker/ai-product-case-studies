@@ -20,7 +20,7 @@ These case studies summarize product thinking and lessons learned from selected 
 
 | Project | What it is |
 |---|---|
-| [AI CMO](./ai-cmo/) | Self-hosted marketing agent that plans and drafts social content, with human approval before publishing through Postiz |
+| [AI CMO](./ai-cmo/) | Self-hosted growth agent: watches a site and its commits for SEO, GEO and PLG actions, and drafts social posts for human approval before publishing through Postiz |
 
 ## Product Lens
 

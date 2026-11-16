@@ -83,7 +83,7 @@ test("list_drafts shows rejection reasons; load_skill returns the body or names 
   assert.match(await run(d, "list_drafts", { status: "rejected" }), /"rejectionReason":"too pushy"/);
   assert.equal(await run(d, "list_drafts", { status: "pending" }), "The queue is empty.");
   assert.match(await run(d, "load_skill", { name: "social-post" }), /^# Social post/);
-  assert.match(await run(d, "load_skill", { name: "../../etc/passwd" }), /Unknown skill .* Available: content-calendar, social-post/);
+  assert.match(await run(d, "load_skill", { name: "../../etc/passwd" }), /Unknown skill .* Available: content-calendar, .*social-post/);
 });
 
 test("runAgent drives the tool loop against the Messages API and saves the draft", async () => {

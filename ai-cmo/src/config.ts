@@ -8,6 +8,11 @@ export interface Config {
   brandFile: string;
   skillsDir: string;
   draftsFile: string;
+  recommendationsFile: string;
+  runsFile: string;
+  snapshotsDir: string;
+  watchFile: string;
+  uiPort: number;
   model: string;
   effort: "low" | "medium" | "high" | "xhigh" | "max";
   webSearch: boolean;
@@ -27,6 +32,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     brandFile: env.CMO_BRAND_FILE ?? path.join(root, "brand.json"),
     skillsDir: env.CMO_SKILLS_DIR ?? path.join(root, "skills"),
     draftsFile: path.join(dataDir, "drafts.json"),
+    recommendationsFile: path.join(dataDir, "recommendations.json"),
+    runsFile: path.join(dataDir, "runs.json"),
+    snapshotsDir: path.join(dataDir, "snapshots"),
+    watchFile: env.CMO_WATCH_FILE ?? path.join(root, "watch.json"),
+    uiPort: Number(env.CMO_UI_PORT ?? 4321),
     model: env.CMO_MODEL ?? "claude-opus-5-5",
     effort: effort as Config["effort"],
     webSearch: env.CMO_WEB_SEARCH !== "0",
