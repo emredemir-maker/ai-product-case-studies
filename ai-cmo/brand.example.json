@@ -1,0 +1,16 @@
+{
+  "name": "Acme Analytics",
+  "description": "Self-serve product analytics for B2B SaaS teams that have no data engineer.",
+  "language": "English",
+  "audience": "Heads of product and growth at 20-200 person SaaS companies.",
+  "voice": {
+    "tone": "Direct, practical, lightly dry. Sounds like an experienced operator, not a vendor.",
+    "do": ["Lead with a concrete observation or number", "Use plain words", "One idea per post"],
+    "dont": ["Hype words (revolutionary, game-changing)", "Emoji walls", "Unverifiable claims"]
+  },
+  "products": [
+    { "name": "Acme Funnels", "summary": "Funnel analysis that works on raw event data without a schema.", "url": "https://example.com/funnels" }
+  ],
+  "goals": ["Grow qualified demo requests from LinkedIn"],
+  "notes": "Never mention competitors by name."
+}

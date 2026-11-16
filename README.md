@@ -16,6 +16,12 @@ These case studies summarize product thinking and lessons learned from selected 
 | [CX-Inn](./cx-inn.md) | AI-supported B2B customer experience platform | Signal-first CX, zero-survey intelligence, churn risk, human-in-the-loop action |
 | [Talent-Inn](./talentflow.md) | AI-supported recruitment and candidate operations | Bulk CV intake, open-role matching, preliminary scoring, CV verification, evidence-led interviews |
 
+## Reference Implementations
+
+| Project | What it is |
+|---|---|
+| [AI CMO](./ai-cmo/) | Self-hosted marketing agent that plans and drafts social content, with human approval before publishing through Postiz |
+
 ## Product Lens
 
 The common thread across these case studies is not AI as automation alone.
