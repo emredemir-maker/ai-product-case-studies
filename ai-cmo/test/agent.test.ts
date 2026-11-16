@@ -15,7 +15,10 @@ const brand = BrandSchema.parse({
   audience: "PMs",
   voice: { tone: "Direct", dont: ["Hype"] },
 });
-const skills = discoverSkills(path.resolve(import.meta.dirname, "..", "skills"));
+// Only the skills shipped in this repo, so results don't depend on `npm run skills:install`.
+const skills = discoverSkills(path.resolve(import.meta.dirname, "..", "skills")).filter(
+  (s) => !s.file.includes(`${path.sep}vendor${path.sep}`),
+);
 
 const deps = (extra: Partial<AgentDeps> = {}): AgentDeps => ({
   config: { model: "claude-opus-5-5", effort: "high", webSearch: false },
