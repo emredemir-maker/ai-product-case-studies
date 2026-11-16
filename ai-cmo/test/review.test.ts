@@ -56,7 +56,14 @@ test("a review crawls the site, lets the agent read a page, and records recommen
     drafts: new DraftStore(path.join(dir, "drafts.json")),
     postiz: null,
     client: new Anthropic({ apiKey: "test", baseURL: api.url, maxRetries: 0 }),
-    watch: WatchSchema.parse({ site: { url: site.url }, repos: [{ name: "app", path: path.join(dir, "no-such-repo") }] }),
+    watch: WatchSchema.parse({
+      site: { url: site.url },
+      repos: [{ name: "app", path: path.join(dir, "no-such-repo") }],
+      sources: [
+        { type: "geo-optimizer", command: [process.execPath, "-e", 'console.log(JSON.stringify({ score: 41, band: "foundation", recommendations: ["Create /llms.txt"] }))'] },
+        { type: "command", name: "Visibility", command: ["no-such-program-xyz"] },
+      ],
+    }),
     recommendations: new RecommendationStore(path.join(dir, "recommendations.json")),
     snapshots: new SnapshotStore(path.join(dir, "snapshots")),
     runs: new RunStore(path.join(dir, "runs.json")),
@@ -67,6 +74,9 @@ test("a review crawls the site, lets the agent read a page, and records recommen
   assert.equal(run.summary, "Pricing has no description. Fix that first.");
   assert.equal(run.pagesChecked, 2);
   assert.match(run.problems[0]!, /Could not read commits from app/);
+  assert.match(run.problems[1]!, /Visibility did not run: "no-such-program-xyz" is not installed/);
+  assert.deepEqual(run.sources[0], { name: "GEO Optimizer audit", ok: true, score: 41, band: "foundation", recommendations: ["Create /llms.txt"] });
+  assert.equal(run.sources[1]!.ok, false);
   const [rec] = deps.recommendations.list("open");
   assert.equal(rec!.title, "Add a meta description to /pricing");
   assert.equal(rec!.agentPrompt, "In the app repository, add a meta description to the pricing page.");
@@ -78,9 +88,10 @@ test("a review crawls the site, lets the agent read a page, and records recommen
 
   const [first, second] = api.requests;
   const input: string = first!.body.messages[0].content;
-  assert.match(input, /robots\.txt: found\. Sitemap: found, 2 URLs\. llms\.txt: missing\./);
+  assert.match(input, /Sitemap: found, 2 URLs\./);
+  assert.match(input, /## Report: GEO Optimizer audit\n\{"score":41/);
+  assert.doesNotMatch(input, /## Report: Visibility/);
   assert.match(input, /This is the first review/);
-  assert.match(input, /\/pricing: Missing meta description/);
   assert.match(input, /Problems gathering data\n- Could not read commits from app/);
   assert.match(first!.body.system, /growth lead for Acme/);
   assert.match(first!.body.system, /- plg-review: /);

@@ -24,9 +24,13 @@ SEO is being found and ranked by search engines. GEO is being read, understood a
 - Claims carry their source or their number. "Cuts setup from 2 days to 20 minutes" is citable; "blazing fast" is not.
 - Dates are visible on content that ages.
 
-## Judging the mechanical findings
+## Using the audit reports
 
-The findings list is produced by a script and has no sense of importance. Before recommending a fix, read the page when the finding alone does not tell you what to write. Group the same issue across pages into one recommendation rather than one per page. Skip findings that do not matter: thin content on a login page, missing schema on a legal page.
+The review includes reports from external audit tools. They measure; they have no sense of what matters for this product. Take their checks as evidence, then decide. Before recommending a fix, read the page when the report alone does not tell you what to write. Group the same issue across pages into one recommendation. Skip what does not matter: thin content on a login page, missing schema on a legal page.
+
+**GEO Optimizer** reports a 0-100 AI-readiness score with a breakdown by category (robots and crawler access, llms.txt, schema, meta, content, signals, AI discovery, brand entity) and per-check details. Lead with the categories that lost the most points on pages that carry intent. Its own tool can produce some fixes: `geo llms --base-url <site>` generates an llms.txt from the sitemap, `geo schema` generates JSON-LD, and `geo fix --url <site>` previews robots.txt rules, llms.txt, schema and meta tags without writing anything. When one of these fits, name the command in the prompt for the coding agent, and still state the content the result must contain. The score is that tool's rubric, not a ranking factor; do not promise outcomes from raising it.
+
+**AI visibility reports** (for example from Canonry) show whether answer engines mention or cite the brand for tracked queries, and who they cite instead. A query where competitors are cited and the brand is not points to a missing or weak page for that question: recommend the page or the section, not "improve visibility".
 
 ## Writing the recommendation
 

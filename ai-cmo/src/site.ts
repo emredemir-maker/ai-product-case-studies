@@ -25,15 +25,8 @@ export interface PageSnapshot {
 export interface SiteSnapshot {
   takenAt: string;
   origin: string;
-  robots: { found: boolean; blockedAiCrawlers: string[] };
   sitemap: { found: boolean; urlCount: number };
-  llmsTxt: boolean;
   pages: PageSnapshot[];
-}
-
-export interface Finding {
-  url: string;
-  issue: string;
 }
 
 export interface SiteDiff {
@@ -41,9 +34,6 @@ export interface SiteDiff {
   removed: string[];
   changed: { url: string; fields: string[] }[];
 }
-
-/** Crawlers that feed AI answer engines; blocking them removes the site from those answers. */
-export const AI_CRAWLERS = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "PerplexityBot", "Google-Extended"];
 
 const USER_AGENT = "ai-cmo-site-watch/0.1";
 
@@ -87,32 +77,6 @@ export function extractPage(url: string, status: number, html: string): PageSnap
   };
 }
 
-/** AI crawlers that robots.txt disallows from the whole site, directly or through `User-agent: *`. */
-export function blockedAiCrawlers(robotsTxt: string): string[] {
-  const groups: { agents: string[]; disallowAll: boolean }[] = [];
-  let current: { agents: string[]; disallowAll: boolean } | undefined;
-  let lastWasAgent = false;
-  for (const raw of robotsTxt.split(/\r?\n/)) {
-    const match = /^\s*([A-Za-z-]+)\s*:\s*(.*?)\s*(?:#.*)?$/.exec(raw);
-    if (!match) continue;
-    const key = match[1]!.toLowerCase();
-    const value = match[2]!;
-    if (key === "user-agent") {
-      if (!current || !lastWasAgent) groups.push((current = { agents: [], disallowAll: false }));
-      current.agents.push(value.toLowerCase());
-      lastWasAgent = true;
-      continue;
-    }
-    lastWasAgent = false;
-    if (key === "disallow" && value === "/" && current) current.disallowAll = true;
-  }
-  return AI_CRAWLERS.filter((bot) => {
-    const own = groups.filter((g) => g.agents.includes(bot.toLowerCase()));
-    const applicable = own.length ? own : groups.filter((g) => g.agents.includes("*"));
-    return applicable.some((g) => g.disallowAll);
-  });
-}
-
 async function get(url: string): Promise<{ status: number; body: string; type: string } | null> {
   try {
     const res = await fetch(url, { headers: { "User-Agent": USER_AGENT }, redirect: "follow", signal: AbortSignal.timeout(20_000) });
@@ -124,7 +88,10 @@ async function get(url: string): Promise<{ status: number; body: string; type: s
 
 const sitemapLocs = (xml: string) => [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map((m) => m[1]!.replace(/&amp;/g, "&"));
 
-/** Fetches robots.txt, the sitemap, llms.txt and up to `maxPages` same-origin pages. */
+/**
+ * Fetches up to `maxPages` same-origin pages, from the sitemap or by following links, and records
+ * what each one says about itself. This is for change tracking; auditing is left to external tools.
+ */
 export async function crawlSite(siteUrl: string, maxPages = 30): Promise<SiteSnapshot> {
   const origin = new URL(siteUrl).origin;
   const sameOrigin = (u: string) => {
@@ -136,10 +103,7 @@ export async function crawlSite(siteUrl: string, maxPages = 30): Promise<SiteSna
   };
 
   const robots = await get(`${origin}/robots.txt`);
-  const robotsFound = robots?.status === 200 && !robots.type.includes("html");
-  const llms = await get(`${origin}/llms.txt`);
-
-  const sitemapUrls = robotsFound ? [...robots.body.matchAll(/^\s*sitemap\s*:\s*(\S+)/gim)].map((m) => m[1]!) : [];
+  const sitemapUrls = robots?.status === 200 && !robots.type.includes("html") ? [...robots.body.matchAll(/^\s*sitemap\s*:\s*(\S+)/gim)].map((m) => m[1]!) : [];
   if (!sitemapUrls.length) sitemapUrls.push(`${origin}/sitemap.xml`);
   const pageUrls = new Set<string>();
   let sitemapFound = false;
@@ -181,49 +145,9 @@ export async function crawlSite(siteUrl: string, maxPages = 30): Promise<SiteSna
   return {
     takenAt: new Date().toISOString(),
     origin,
-    robots: { found: robotsFound, blockedAiCrawlers: robotsFound ? blockedAiCrawlers(robots.body) : [] },
     sitemap: { found: sitemapFound, urlCount: pageUrls.size },
-    llmsTxt: llms?.status === 200 && !llms.type.includes("html") && llms.body.trim().length > 0,
     pages,
   };
-}
-
-/** Mechanical checks that need no judgement. The agent decides what matters and why. */
-export function checkSite(site: SiteSnapshot): Finding[] {
-  const findings: Finding[] = [];
-  const add = (url: string, issue: string) => findings.push({ url, issue });
-  if (!site.robots.found) add(site.origin, "No robots.txt");
-  if (site.robots.blockedAiCrawlers.length) add(site.origin, `robots.txt blocks AI crawlers: ${site.robots.blockedAiCrawlers.join(", ")}`);
-  if (!site.sitemap.found) add(site.origin, "No XML sitemap found");
-  if (!site.llmsTxt) add(site.origin, "No llms.txt");
-
-  const titles = new Map<string, string[]>();
-  for (const p of site.pages) {
-    if (p.status !== 200) {
-      add(p.url, `Returns HTTP ${p.status}`);
-      continue;
-    }
-    if (!p.title) add(p.url, "Missing <title>");
-    else {
-      if (p.title.length > 65) add(p.url, `Title is ${p.title.length} characters (over 65)`);
-      titles.set(p.title, [...(titles.get(p.title) ?? []), p.url]);
-    }
-    if (!p.description) add(p.url, "Missing meta description");
-    else if (p.description.length > 165) add(p.url, `Meta description is ${p.description.length} characters (over 165)`);
-    if (p.h1.length !== 1) add(p.url, `${p.h1.length} <h1> elements (expected 1)`);
-    if (!p.canonical) add(p.url, "Missing canonical link");
-    if (p.noindex) add(p.url, "Page is noindex");
-    if (!p.schemaTypes.length) add(p.url, "No JSON-LD structured data");
-    if (p.schemaTypes.includes("(invalid JSON-LD)")) add(p.url, "JSON-LD does not parse");
-    if (!p.hasOpenGraph) add(p.url, "Missing Open Graph tags");
-    if (!p.lang) add(p.url, "Missing lang attribute on <html>");
-    if (p.imagesMissingAlt) add(p.url, `${p.imagesMissingAlt} image(s) without alt text`);
-    if (p.wordCount < 150) add(p.url, `Thin content (${p.wordCount} words)`);
-  }
-  for (const [title, urls] of titles) {
-    if (urls.length > 1) add(urls[0]!, `Title "${title}" is shared by ${urls.length} pages: ${urls.slice(1).join(", ")}`);
-  }
-  return findings;
 }
 
 const COMPARED: (keyof PageSnapshot)[] = ["status", "title", "description", "canonical", "h1", "noindex", "schemaTypes", "textHash"];

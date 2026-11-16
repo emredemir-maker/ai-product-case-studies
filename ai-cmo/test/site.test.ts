@@ -4,24 +4,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { recentCommits } from "../src/repo.ts";
-import { SnapshotStore, blockedAiCrawlers, checkSite, crawlSite, diffSites } from "../src/site.ts";
+import { SnapshotStore, crawlSite, diffSites } from "../src/site.ts";
+import { SourceSchema, runSource } from "../src/sources.ts";
 import { fakeSite, tmpDir } from "./helpers.ts";
 
-test("robots.txt: AI crawlers are blocked by their own group or by the wildcard group", () => {
-  assert.deepEqual(blockedAiCrawlers("User-agent: GPTBot\nUser-agent: ClaudeBot\nDisallow: /\n\nUser-agent: *\nDisallow: /admin\n"), ["GPTBot", "ClaudeBot"]);
-  assert.equal(blockedAiCrawlers("User-agent: *\nDisallow: / # everything\n").length, 6);
-  // A crawler's own group overrides the wildcard.
-  assert.equal(blockedAiCrawlers("User-agent: *\nDisallow: /\n\nUser-agent: GPTBot\nAllow: /\n").includes("GPTBot"), false);
-  assert.deepEqual(blockedAiCrawlers("User-agent: *\nDisallow:\n"), []);
-});
-
-test("crawl reads robots, sitemap and same-origin pages, and extracts page signals", async () => {
+test("crawl reads the sitemap and same-origin pages, and extracts page signals", async () => {
   const site = await fakeSite();
   const snapshot = await crawlSite(site.url);
 
-  assert.deepEqual(snapshot.robots, { found: true, blockedAiCrawlers: ["GPTBot"] });
   assert.deepEqual(snapshot.sitemap, { found: true, urlCount: 2 });
-  assert.equal(snapshot.llmsTxt, false);
   assert.deepEqual(snapshot.pages.map((p) => new URL(p.url).pathname), ["/", "/pricing"]);
 
   const home = snapshot.pages[0]!;
@@ -34,17 +25,9 @@ test("crawl reads robots, sitemap and same-origin pages, and extracts page signa
   assert.equal(home.lang, "en");
   assert.ok(home.wordCount > 200 && home.wordCount < 215, String(home.wordCount));
 
-  const issues = checkSite(snapshot);
-  const on = (pathname: string) => issues.filter((f) => f.url === snapshot.origin + pathname).map((f) => f.issue);
-  assert.deepEqual(issues.filter((f) => f.url === snapshot.origin).map((f) => f.issue), ["robots.txt blocks AI crawlers: GPTBot", "No llms.txt"]);
-  assert.deepEqual(on("/"), ["1 image(s) without alt text"]);
-  assert.deepEqual(on("/pricing"), [
-    "Missing meta description",
-    "Missing canonical link",
-    "No JSON-LD structured data",
-    "Missing Open Graph tags",
-    "Thin content (7 words)",
-  ]);
+  const pricing = snapshot.pages[1]!;
+  assert.equal(pricing.description, undefined);
+  assert.equal(pricing.wordCount, 7);
   await site.close();
 });
 
@@ -109,4 +92,38 @@ test("recentCommits returns subjects, bodies and files since a date", async () =
   assert.deepEqual(commits[0]!.files, ["src/invite.ts"]);
   assert.equal((await recentCommits(repo, "2019-01-01T00:00:00Z")).length, 2);
   await assert.rejects(recentCommits(path.join(repo, "missing"), "2024-01-01T00:00:00Z"));
+});
+
+test("sources: GEO Optimizer preset builds the audit command and reads score and recommendations", async () => {
+  // A stand-in for the `geo` CLI that reports the arguments it was given.
+  const script = 'console.log(JSON.stringify({ score: 49, band: "foundation", recommendations: ["Create /llms.txt", 7], argv: process.argv.slice(1) }))';
+  const source = SourceSchema.parse({ type: "geo-optimizer", command: [process.execPath, "-e", script], maxPages: 10 });
+  const result = await runSource(source, "https://acme.test");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.name, "GEO Optimizer audit");
+  assert.equal(result.score, 49);
+  assert.equal(result.band, "foundation");
+  assert.deepEqual(result.recommendations, ["Create /llms.txt"]);
+  assert.deepEqual(JSON.parse(result.output).argv, ["audit", "--url", "https://acme.test", "--format", "json", "--max-pages", "10"]);
+  assert.deepEqual(SourceSchema.parse({ type: "geo-optimizer" }).command, ["uvx", "--from", "geo-optimizer-skill", "geo"]);
+});
+
+test("sources: a command's output is passed through; failures are reported, not thrown", async () => {
+  const ok = await runSource({ type: "command", name: "Visibility", command: [process.execPath, "-e", 'console.log("mentions: 3")'] }, "https://acme.test");
+  assert.deepEqual(ok, { name: "Visibility", ok: true, output: "mentions: 3\n" });
+
+  const missing = await runSource({ type: "command", name: "Nope", command: ["no-such-program-xyz"] }, "https://acme.test");
+  assert.equal(missing.ok, false);
+  assert.match(missing.error!, /"no-such-program-xyz" is not installed or not on PATH/);
+
+  const failed = await runSource({ type: "command", name: "Fails", command: [process.execPath, "-e", 'console.error("bad key"); process.exit(2)'] }, "https://acme.test");
+  assert.equal(failed.ok, false);
+  assert.match(failed.error!, /bad key/);
+
+  const silent = await runSource({ type: "command", name: "Silent", command: [process.execPath, "-e", ""] }, "https://acme.test");
+  assert.equal(silent.error, "The tool printed nothing.");
+  // Arguments are not interpreted by a shell.
+  const literal = await runSource({ type: "command", name: "Literal", command: [process.execPath, "-e", "console.log(process.argv[1])", "$(echo injected); ls"] }, "https://acme.test");
+  assert.equal(literal.output, "$(echo injected); ls\n");
 });

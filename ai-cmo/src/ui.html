@@ -210,7 +210,7 @@ function posts() {
 }
 
 function list(label, items) {
-  return items.length ? [h("p", { class: "label" }, label), h("ul", {}, items.map((i) => h("li", {}, i)))] : null;
+  return [h("p", { class: "label" }, label), items.length ? h("ul", {}, items.map((i) => h("li", {}, i))) : null];
 }
 
 function changes() {
@@ -218,11 +218,18 @@ function changes() {
   return data.runs.map((r) => h("article", { class: "item run" },
     h("h3", {}, dayTime(r.at)),
     h("p", { class: "meta" }, `${r.pagesChecked} pages checked, ${r.recommendationIds.length} recommendations, ${r.draftIds.length} posts`),
-    list("Product changes", r.commits.map((c) => [h("code", {}, c.hash), ` ${c.subject} (${c.repo})`])),
-    list("New pages", r.diff.added), list("Removed pages", r.diff.removed),
-    list("Changed pages", r.diff.changed.map((c) => `${c.url}: ${c.fields.join(", ")}`)),
-    list(`Automatic checks (${r.findings.length})`, r.findings.slice(0, 40).map((f) => `${f.url}: ${f.issue}`)),
-    list("Problems", r.problems)));
+    r.commits.length ? list("Product changes", r.commits.map((c) => [h("code", {}, c.hash), ` ${c.subject} (${c.repo})`])) : null,
+    r.diff.added.length ? list("New pages", r.diff.added) : null, r.diff.removed.length ? list("Removed pages", r.diff.removed) : null,
+    r.diff.changed.length ? list("Changed pages", r.diff.changed.map((c) => `${c.url}: ${c.fields.join(", ")}`)) : null,
+    (r.sources || []).map((s) => list(
+      s.ok ? `${s.name}${s.score != null ? `: ${s.score}/100${s.band ? `, ${s.band}` : ""}` : ""}` : `${s.name} did not run`,
+      s.ok ? (s.recommendations || []).slice(0, 12) : [s.error])),
+    r.problems.length ? list("Problems", r.problems) : null));
+}
+
+function geoScore(run) {
+  const s = (run.sources || []).find((x) => x.ok && x.score != null);
+  return s ? `. AI readiness ${s.score}/100` : "";
 }
 
 function render() {
@@ -236,7 +243,7 @@ function render() {
   app.replaceChildren(
     h("header", { class: "top" },
       h("div", {}, h("h1", {}, data.site ? data.site.replace(/^https?:\/\//, "") : "Growth desk"),
-        h("p", { class: "when" }, data.review.running ? "Checking the site and recent commits…" : last ? `Last checked ${ago(last.at)}` : "Not checked yet")),
+        h("p", { class: "when" }, data.review.running ? "Checking the site and recent commits…" : last ? `Last checked ${ago(last.at)}${geoScore(last)}` : "Not checked yet")),
       h("button", { disabled: !data.canReview || data.review.running || ui.busy, onclick: () => call("/api/review", {}) }, data.review.running ? "Checking…" : "Check now")),
     h("section", { class: "note" },
       last ? last.summary.split(/\n{2,}/).map((p) => h("p", {}, p))

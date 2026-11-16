@@ -10,10 +10,10 @@ Both land in one local interface, the growth desk.
 ![Growth desk](docs/growth-desk.png)
 
 ```
-your site ──crawl──┐
-                   ├──> Claude agent ──> recommendations ──> you: done / dismiss (with a reason)
-your repos ─git log┘         │
-                             └────────> post drafts ──────> you: approve ──> Postiz ──> channels
+your site ──audit tools──┐
+your site ──page diff────┼──> Claude agent ──> recommendations ──> you: done / dismiss (with a reason)
+your repos ──git log─────┘         │      (each with a prompt for your coding agent)
+                                   └────────> post drafts ──────> you: approve ──> Postiz ──> channels
 ```
 
 ## Design
@@ -22,7 +22,7 @@ your repos ─git log┘         │
 - **One agent, many skills.** Channel and task expertise lives in `SKILL.md` playbooks the agent loads on demand, not in separate agents. Two are included; `npm run skills:install` adds the MIT-licensed [marketingskills](https://github.com/coreyhaines31/marketingskills) set (copywriting, SEO, CRO, email, ads and more).
 - **Postiz stays a separate service.** This project talks to its public HTTP API only. Postiz is AGPL-3.0; none of its code is included or linked here.
 - **Rejections are feedback.** Rejecting a post or dismissing a recommendation stores your reason, and the agent reads it before its next run.
-- **Scripts measure, the agent judges.** A crawler collects page facts (titles, descriptions, headings, structured data, robots.txt rules for AI crawlers, sitemap, `llms.txt`) and diffs them against the last check. The agent decides which of them matter, reads pages where it needs to, and writes the fix.
+- **Existing tools measure, the agent judges.** SEO and GEO rules are not implemented here. Each check runs external audit tools and gives their reports to the agent, which decides what matters for this product, reads pages where it needs to, and writes the fix. What this project adds is the part those tools lack: tying site changes to your commits, the PLG view, one prioritized list, and a prompt per item.
 - **Local and single-user.** The interface listens on `127.0.0.1` only, and accepts writes only from its own page.
 
 ## Setup
@@ -50,16 +50,27 @@ npm run cmo -- todo                  # list open recommendations
 npm run cmo -- prompt a1b2c3         # print a recommendation's prompt for a coding agent
 ```
 
-`watch.json` names the site to crawl and the git clones to read commits from:
+`watch.json` names the site, the git clones to read commits from, and the audit tools to run:
 
 ```json
 {
   "site": { "url": "https://example.com", "maxPages": 30 },
-  "repos": [{ "name": "app", "path": "../my-app" }]
+  "repos": [{ "name": "app", "path": "../my-app" }],
+  "sources": [
+    { "type": "geo-optimizer", "maxPages": 10 },
+    { "type": "command", "name": "AI visibility (Canonry)", "command": ["cnry", "visibility-stats", "my-site", "--format", "json"] }
+  ]
 }
 ```
 
-Each check crawls the site (sitemap first, links otherwise), compares it with the previous check, reads the commits made since, and saves at most eight recommendations, each with the reason, the concrete change and the evidence. Each recommendation that needs a code or content change also carries a self-contained prompt for a coding agent: copy it from the interface with "Copy prompt", or pipe it, for example `npm run -s cmo -- prompt a1b2c3 | claude`. The first check treats the whole site as new. `ui --every` keeps the process running; to schedule without it, run `npm run cmo -- review` from cron.
+| Source | What it adds | Needs |
+|---|---|---|
+| `geo-optimizer` | [GEO Optimizer](https://github.com/Auriti-Labs/geo-optimizer-skill) (MIT): a 0-100 AI-readiness score with checks for crawler access, `llms.txt`, structured data, meta tags and content. It audits public URLs only. | [`uv`](https://docs.astral.sh/uv/) on PATH (runs it with `uvx`, nothing to install), or `pip install geo-optimizer-skill` and `"command": ["geo"]` |
+| `command` | Any tool that prints a report. The example reads AI-visibility figures from [Canonry](https://github.com/Canonry/canonry) (MIT): whether ChatGPT, Claude or Gemini mention and cite you for the queries you track. | The tool installed and set up; Canonry needs its own server running and your own provider keys |
+
+Commands run without a shell, with the words exactly as listed. A tool that is missing or fails is reported under "What changed" and the check continues without it.
+
+Each check runs the audit tools, takes a snapshot of the site's pages (sitemap first, links otherwise) and compares it with the previous one, reads the commits made since, and saves at most eight recommendations, each with the reason, the concrete change and the evidence. Each recommendation that needs a code or content change also carries a self-contained prompt for a coding agent: copy it from the interface with "Copy prompt", or pipe it, for example `npm run -s cmo -- prompt a1b2c3 | claude`. The first check treats the whole site as new. `ui --every` keeps the process running; to schedule without it, run `npm run cmo -- review` from cron.
 
 "PLG 2.0" and "PLG 3.0" have no single agreed definition. `skills/plg-review/SKILL.md` states the one used here (product-led with sales and lifecycle assistance; AI-native products that are also usable by agents); edit it to match yours.
 
@@ -98,7 +109,8 @@ Approving and rejecting also work from the interface.
 |---|---|
 | `src/agent.ts` | Post-planning prompt and tools, the tool-runner loop |
 | `src/review.ts` | The site and product review: inputs, prompt, tools, run record |
-| `src/site.ts` | Crawler, page signals, mechanical checks, snapshot diff |
+| `src/sources.ts` | Runs the external audit tools and collects their reports |
+| `src/site.ts` | Page snapshot and diff, for change tracking |
 | `src/repo.ts` | Recent commits from a local git clone |
 | `src/recommendations.ts` | Recommendation list (JSON file) |
 | `src/ui.ts`, `src/ui.html` | The local interface |
@@ -118,8 +130,9 @@ npm run typecheck
 
 ## Limits
 
-- The review sees the public site and commit messages only: no analytics, no Search Console, no logged-in product. It says so when a recommendation depends on a number it cannot see.
-- Pages are fetched without running JavaScript, so content rendered only in the browser is not seen. That is also how most AI crawlers see the site.
+- Out of the box the review sees the public site, the GEO audit and commit messages: no analytics, no Search Console, no logged-in product. Canonry can supply Search Console and AI-visibility data as a `command` source, but that path has only been tested with a stand-in command, not a configured Canonry instance.
+- There is no dedicated technical-SEO crawler (broken links, redirect chains). SEOnaut was considered and left out: it is a web application that needs MySQL and Docker and has no command-line or API output to read.
+- The page snapshot is taken without running JavaScript, so content rendered only in the browser is not seen. That is also how most AI crawlers see the site.
 - Text posts only; no images or video yet.
 - Everything is stored in local JSON files, for one user on one machine.
 - Some Postiz providers require settings (for example who can reply on X). The agent reads the schema from Postiz and fills them in, and Postiz validates them on approve.
