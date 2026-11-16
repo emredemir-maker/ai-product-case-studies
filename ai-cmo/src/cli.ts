@@ -23,6 +23,7 @@ const USAGE = `Usage: cmo <command>
   reject <id> [reason]      Reject a draft; the agent reads the reason on its next run
   review                    Check the site and recent commits; save recommendations and posts
   todo [status]             List recommendations (open | done | dismissed)
+  prompt <id>               Print a recommendation's prompt for a coding agent
   ui [--every <hours>]      Open the local interface; optionally run a review on an interval
   channels                  List channels connected in Postiz
   skills                    List installed skills`;
@@ -143,6 +144,12 @@ async function main() {
       const list = recommendations.list(status);
       for (const r of list) console.log(`${r.id}  ${r.priority.padEnd(6)}  ${r.area.padEnd(7)}  ${r.title}\n        ${r.action.replace(/\s+/g, " ").slice(0, 200)}\n`);
       if (!list.length) console.log(`No ${status} recommendations.`);
+      break;
+    }
+    case "prompt": {
+      const rec = recommendations.get(requireArg(positional[0], "recommendation id"));
+      if (!rec.agentPrompt) throw new Error(`Recommendation ${rec.id} has no prompt for a coding agent.`);
+      console.log(rec.agentPrompt);
       break;
     }
     case "ui": {

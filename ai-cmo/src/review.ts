@@ -85,6 +85,8 @@ The snapshot holds only page metadata. When a recommendation depends on what a p
 
 Save each recommendation with save_recommendation. The founder has limited time, so choose: at most eight per review, the ones that matter most, each specific enough to act on without further research. When the fix is text (a title tag, a description, an opening paragraph, JSON-LD, an llms.txt), write that text in the action. If nothing meaningful changed and the open list already covers the site, save nothing and say so; a quiet review is a valid result.
 
+The founder does not make these changes by hand: they paste a prompt into a coding agent that has the repository open. So for every recommendation that is carried out in code or site content, also write that prompt in agent_prompt. The coding agent starts with none of what you know, so the prompt has to carry it: what to change and what it is for, what you observed and on which URL, the exact text or markup to use, which repository it concerns and any files the commits point to (say so when you are inferring the location, and let the agent find the code otherwise), what must stay as it is, and how to check the result, such as the tag present in the rendered page or the URL listed in the sitemap. Write it as a brief to a capable colleague, in prose, covering one recommendation only. Leave agent_prompt out when there is nothing for a coding agent to do, for example a decision only the founder can make.
+
 When a commit ships something users would care about, also write the announcement as a post with save_draft, following the social-post skill. Posts go to the same review queue; you do not publish.
 
 Available skills:
@@ -121,9 +123,14 @@ function buildReviewTools(deps: ReviewDeps, origin: string, recommendationIds: s
       why: z.string().min(1).describe("What you observed and why it matters, one or two sentences"),
       action: z.string().min(1).describe("The concrete change, including the proposed text when the fix is text"),
       evidence: z.array(z.string()).describe("Page URLs or commit hashes this rests on"),
+      agent_prompt: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("A self-contained brief the founder pastes into a coding agent to make this change. Omit only when no code or content change is involved."),
     }),
-    run: (input) => {
-      const rec = deps.recommendations.create(input);
+    run: ({ agent_prompt, ...input }) => {
+      const rec = deps.recommendations.create({ ...input, agentPrompt: agent_prompt });
       recommendationIds.push(rec.id);
       return JSON.stringify({ id: rec.id });
     },
@@ -179,7 +186,7 @@ function renderReviewInput(site: SiteSnapshot, previous: SiteSnapshot | null, di
   ];
   for (const [repo, list] of commits) {
     parts.push(
-      `## Commits in ${repo} (${list.length})\n${
+      `## Commits in the "${repo}" repository (${list.length})\n${
         list.map((c) => `- ${c.hash} ${c.date.slice(0, 10)} ${c.subject}${c.body ? `\n  ${c.body.replace(/\n+/g, " ")}` : ""}\n  files: ${c.files.join(", ")}`).join("\n") || "none"
       }`,
     );

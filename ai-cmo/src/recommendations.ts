@@ -16,12 +16,14 @@ export interface Recommendation {
   action: string;
   /** Page URLs or commit hashes the recommendation rests on. */
   evidence: string[];
+  /** A self-contained brief to paste into a coding agent that will make the change. */
+  agentPrompt?: string;
   createdAt: string;
   decidedAt?: string;
   dismissReason?: string;
 }
 
-export type NewRecommendation = Pick<Recommendation, "area" | "priority" | "title" | "why" | "action" | "evidence">;
+export type NewRecommendation = Pick<Recommendation, "area" | "priority" | "title" | "why" | "action" | "evidence" | "agentPrompt">;
 
 export class RecommendationStore {
   private readonly file: JsonList<Recommendation>;
@@ -39,6 +41,12 @@ export class RecommendationStore {
     const all = this.file.read();
     const rec: Recommendation = { ...input, id: newId(all), status: "open", createdAt: new Date().toISOString() };
     this.file.write([...all, rec]);
+    return rec;
+  }
+
+  get(id: string): Recommendation {
+    const rec = this.file.read().find((r) => r.id === id);
+    if (!rec) throw new Error(`No recommendation with id ${id}`);
     return rec;
   }
 

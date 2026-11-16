@@ -72,6 +72,9 @@
   .item .why { margin-top: 10px; max-width: 42em; }
   .do { margin-top: 12px; padding-left: 14px; border-left: 3px solid var(--accent); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 44em; }
   .do b { display: block; font-size: 13px; font-weight: 600; color: var(--muted); }
+  details.prompt { margin-top: 12px; font-size: 14px; }
+  details.prompt summary { cursor: pointer; color: var(--muted); }
+  details.prompt pre { margin: 8px 0 0; padding: 12px 14px; background: var(--bg); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; max-width: 46em; }
   .evidence { margin-top: 10px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
   .evidence a, .evidence code { margin-right: 10px; }
   code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.92em; }
@@ -93,7 +96,7 @@
 <script>
 const AREA = { seo: "SEO", geo: "GEO", plg: "PLG", content: "Content" };
 const PRIORITY = { high: "Do first", medium: "Worth doing", low: "When there is time" };
-const ui = { tab: "todo", area: "all", showClosed: false, dismissing: null, rejecting: null, error: null, busy: false };
+const ui = { tab: "todo", area: "all", showClosed: false, dismissing: null, rejecting: null, error: null, busy: false, copied: null, promptOpen: new Set() };
 let data = null;
 
 function h(tag, props, ...children) {
@@ -138,6 +141,14 @@ function reasonForm(placeholder, label, onSubmit, onCancel) {
   return form;
 }
 
+async function copyPrompt(r) {
+  try {
+    await navigator.clipboard.writeText(r.agentPrompt);
+    ui.copied = r.id; render();
+    setTimeout(() => { if (ui.copied === r.id) { ui.copied = null; render(); } }, 2000);
+  } catch { ui.promptOpen.add(r.id); ui.error = "Could not copy. The prompt is shown below; select and copy it."; render(); }
+}
+
 function recommendation(r) {
   const open = r.status === "open";
   const evidence = r.evidence.map((e) => /^https?:\/\//.test(e) ? h("a", { href: e, target: "_blank", rel: "noopener noreferrer" }, e.replace(/^https?:\/\//, "")) : h("code", {}, e));
@@ -147,12 +158,15 @@ function recommendation(r) {
     h("p", { class: "why" }, r.why),
     h("div", { class: "do" }, h("b", {}, "What to change"), r.action),
     evidence.length ? h("p", { class: "evidence" }, evidence) : null,
+    r.agentPrompt ? h("details", { class: "prompt", open: ui.promptOpen.has(r.id), ontoggle: (e) => { e.target.open ? ui.promptOpen.add(r.id) : ui.promptOpen.delete(r.id); } },
+      h("summary", {}, "Prompt for your coding agent"), h("pre", {}, r.agentPrompt)) : null,
     ui.dismissing === r.id
       ? reasonForm("Why not? The next check takes this into account", "Dismiss",
           (reason) => { ui.dismissing = null; call(`/api/recommendations/${r.id}`, { status: "dismissed", reason }); },
           () => { ui.dismissing = null; render(); })
       : h("div", { class: "actions" }, open
-          ? [h("button", { class: "primary", onclick: () => call(`/api/recommendations/${r.id}`, { status: "done" }) }, "Mark done"),
+          ? [r.agentPrompt ? h("button", { class: "primary", onclick: () => copyPrompt(r) }, ui.copied === r.id ? "Copied" : "Copy prompt") : null,
+             h("button", { class: r.agentPrompt ? null : "primary", onclick: () => call(`/api/recommendations/${r.id}`, { status: "done" }) }, "Mark done"),
              h("button", { onclick: () => { ui.dismissing = r.id; render(); } }, "Dismiss")]
           : h("button", { onclick: () => call(`/api/recommendations/${r.id}`, { status: "open" }) }, "Reopen")));
 }

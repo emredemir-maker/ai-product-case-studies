@@ -39,7 +39,7 @@ test("a review crawls the site, lets the agent read a page, and records recommen
             type: "tool_use",
             id: "t3",
             name: "save_recommendation",
-            input: { area: "seo", priority: "high", title: "Add a meta description to /pricing", why: "It has none.", action: 'Use: "Free plan, Pro at $20."', evidence: [`${site.url}/pricing`] },
+            input: { area: "seo", priority: "high", title: "Add a meta description to /pricing", why: "It has none.", action: 'Use: "Free plan, Pro at $20."', evidence: [`${site.url}/pricing`], agent_prompt: "In the app repository, add a meta description to the pricing page." },
           },
           { type: "tool_use", id: "t4", name: "save_draft", input: { platform: "linkedin", content: "We shipped invites.", scheduled_at: future(), rationale: "New feature" } },
         ],
@@ -69,6 +69,8 @@ test("a review crawls the site, lets the agent read a page, and records recommen
   assert.match(run.problems[0]!, /Could not read commits from app/);
   const [rec] = deps.recommendations.list("open");
   assert.equal(rec!.title, "Add a meta description to /pricing");
+  assert.equal(rec!.agentPrompt, "In the app repository, add a meta description to the pricing page.");
+  assert.equal(deps.recommendations.get(rec!.id).id, rec!.id);
   assert.deepEqual(run.recommendationIds, [rec!.id]);
   assert.deepEqual(run.draftIds, deps.drafts.list("pending").map((d) => d.id));
   assert.deepEqual(deps.runs.latest(), run);
@@ -82,6 +84,9 @@ test("a review crawls the site, lets the agent read a page, and records recommen
   assert.match(input, /Problems gathering data\n- Could not read commits from app/);
   assert.match(first!.body.system, /growth lead for Acme/);
   assert.match(first!.body.system, /- plg-review: /);
+  const saveTool = first!.body.tools.find((t: { name: string }) => t.name === "save_recommendation");
+  assert.ok("agent_prompt" in saveTool.input_schema.properties);
+  assert.equal(saveTool.input_schema.required.includes("agent_prompt"), false);
 
   const results: { tool_use_id: string; content: unknown }[] = second!.body.messages[2].content;
   const text = (id: string) => JSON.stringify(results.find((r) => r.tool_use_id === id)!.content);

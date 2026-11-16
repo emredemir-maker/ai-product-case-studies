@@ -47,6 +47,7 @@ Without a Postiz key the agent still plans and drafts by platform name; you need
 npm run cmo -- ui --every 24         # open http://localhost:4321 and check once a day
 npm run cmo -- review                # or run one check now from the terminal
 npm run cmo -- todo                  # list open recommendations
+npm run cmo -- prompt a1b2c3         # print a recommendation's prompt for a coding agent
 ```
 
 `watch.json` names the site to crawl and the git clones to read commits from:
@@ -58,7 +59,7 @@ npm run cmo -- todo                  # list open recommendations
 }
 ```
 
-Each check crawls the site (sitemap first, links otherwise), compares it with the previous check, reads the commits made since, and saves at most eight recommendations, each with the reason, the concrete change and the evidence. The first check treats the whole site as new. `ui --every` keeps the process running; to schedule without it, run `npm run cmo -- review` from cron.
+Each check crawls the site (sitemap first, links otherwise), compares it with the previous check, reads the commits made since, and saves at most eight recommendations, each with the reason, the concrete change and the evidence. Each recommendation that needs a code or content change also carries a self-contained prompt for a coding agent: copy it from the interface with "Copy prompt", or pipe it, for example `npm run -s cmo -- prompt a1b2c3 | claude`. The first check treats the whole site as new. `ui --every` keeps the process running; to schedule without it, run `npm run cmo -- review` from cron.
 
 "PLG 2.0" and "PLG 3.0" have no single agreed definition. `skills/plg-review/SKILL.md` states the one used here (product-led with sales and lifecycle assistance; AI-native products that are also usable by agents); edit it to match yours.
 
