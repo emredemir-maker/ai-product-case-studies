@@ -34,6 +34,24 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
+/** The agent's closing note. Long notes show their first paragraph, so the list stays on screen. */
+function Summary({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const paragraphs = text.split(/\n{2,}/)
+  const long = paragraphs.length > 1
+  return (
+    <section className="rounded-xl border bg-card p-5">
+      <h2 className="text-sm font-semibold text-muted-foreground">Son kontrolün özeti</h2>
+      <p className="mt-1.5 max-w-[60em] whitespace-pre-wrap">{expanded || !long ? text : paragraphs[0]}</p>
+      {long && (
+        <button type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className="mt-2 rounded-sm text-sm font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+          {expanded ? "Özeti kısalt" : "Özetin tamamını göster"}
+        </button>
+      )}
+    </section>
+  )
+}
+
 export default function App() {
   const [state, setState] = useState<DeskState | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -217,12 +235,7 @@ export default function App() {
 
         {view === "todo" && (
           <>
-            {last?.summary && (
-              <section className="rounded-xl border bg-card p-5">
-                <h2 className="text-sm font-semibold text-muted-foreground">Son kontrolün özeti</h2>
-                <p className="mt-1.5 max-w-[60em] whitespace-pre-wrap">{last.summary}</p>
-              </section>
-            )}
+            {last?.summary && <Summary text={last.summary} />}
             <section className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
               <div className="min-w-0">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
