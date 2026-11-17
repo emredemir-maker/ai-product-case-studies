@@ -112,11 +112,13 @@ Colours, logo and footer come from an optional `visual` section in `brand.json`:
   "muted": "#B4BDCC",
   "accent": "#7CD4FD",
   "logo": "logo.png",
-  "footer": "example.com"
+  "logoHeight": 56,
+  "footer": "example.com",
+  "font": "Inter"
 }
 ```
 
-`logo` is a PNG in `materials/`; without one the brand name is written out. The typeface is Inter, bundled with the project.
+`logo` is a PNG in `materials/`; without one the brand name is written out. Raise `logoHeight` when the logo file includes clear space around the mark. `font` is `Inter` or `Outfit`; both are bundled with the project, so nothing is downloaded.
 
 ### Posts
 

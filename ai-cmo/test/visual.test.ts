@@ -30,7 +30,7 @@ test("the image description is validated by kind", () => {
     assert.equal(VisualSchema.safeParse({ kind: "screenshot", headline: "h", screenshot: { file, prompt: "p" } }).success, false, file);
   }
   assert.equal(VisualSchema.safeParse({ kind: "screenshot", headline: "h", screenshot: { file: "kok-neden_2.PNG", prompt: "p" } }).success, true);
-  assert.deepEqual(brand.visual, { background: "#101828", foreground: "#FFFFFF", muted: "#B4BDCC", accent: "#7CD4FD", footer: "clyrolabs.com" });
+  assert.deepEqual(brand.visual, { background: "#101828", foreground: "#FFFFFF", muted: "#B4BDCC", accent: "#7CD4FD", logoHeight: 56, footer: "clyrolabs.com", font: "Inter" });
 });
 
 test("every layout renders a 1200 x 1200 PNG, with Turkish text, a logo and a screenshot", async () => {
@@ -51,6 +51,10 @@ test("every layout renders a 1200 x 1200 PNG, with Turkish text, a logo and a sc
   assert.ok(isPng(branded));
   assert.notDeepEqual(branded, plain, "the logo changes the image");
   assert.ok(isPng(await renderVisual({ ...base, style: brand.visual, visual: statement })));
+  // The second bundled typeface, with its own heading weight, and a taller logo.
+  const outfit = await renderVisual({ ...base, style: { ...withLogo, font: "Outfit", logoHeight: 120 }, visual: stat });
+  assert.ok(isPng(outfit));
+  assert.notDeepEqual(outfit, branded);
 
   assert.equal(screenshotExists(materialsDir, shot), true);
   assert.equal(screenshotExists(materialsDir, missing), false);

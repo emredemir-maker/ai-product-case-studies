@@ -54,8 +54,12 @@ export const VisualStyleSchema = z.object({
   accent: z.string().default("#7CD4FD"),
   /** PNG logo in the materials folder. Without one the brand name is written out. */
   logo: z.string().optional(),
+  /** Height the logo is drawn at, in pixels. Raise it for a logo file that includes clear space around the mark. */
+  logoHeight: z.number().int().min(24).max(240).default(56),
   /** Text at the bottom right, usually the site address. */
   footer: z.string().optional(),
+  /** Typeface; both are bundled, so nothing is downloaded. */
+  font: z.enum(["Inter", "Outfit"]).default("Inter"),
 });
 export type VisualStyle = z.infer<typeof VisualStyleSchema>;
 
@@ -70,24 +74,35 @@ const el = (type: string, style: Record<string, unknown>, ...children: unknown[]
 });
 
 const require = createRequire(import.meta.url);
-let fonts: { name: string; data: Buffer; weight: 400 | 600 | 700; style: "normal" }[] | undefined;
+type Weight = 400 | 600 | 700;
+type LoadedFont = { name: string; data: Buffer; weight: Weight; style: "normal" };
+
+/** The bundled typefaces: the files that exist for each, and the weight headlines are set in. */
+const TYPEFACES: Record<VisualStyle["font"], { files: string; weights: Weight[]; heading: Weight }> = {
+  Inter: { files: "inter", weights: [400, 600, 700], heading: 700 },
+  Outfit: { files: "outfit", weights: [400, 600], heading: 600 },
+};
+const loaded = new Map<string, LoadedFont[]>();
 
 /**
- * Inter, bundled with the package so rendering needs no network. The font ships in subsets: ğ, ş
- * and İ live in the latin-ext files. satori keeps one font per name and weight, so the two subsets
- * need different names; the layout asks for both and missing glyphs fall through to the second.
+ * Fonts come from the @fontsource packages, so rendering needs no network. They ship in subsets:
+ * ğ, ş and İ live in the latin-ext files. satori keeps one font per name and weight, so the two
+ * subsets get different names; the layout asks for both and missing glyphs fall through to the second.
  */
-function loadFonts() {
-  if (fonts) return fonts;
-  const dir = path.join(path.dirname(require.resolve("@fontsource/inter/package.json")), "files");
-  fonts = ([400, 600, 700] as const).flatMap((weight) =>
+function loadFonts(family: VisualStyle["font"]): LoadedFont[] {
+  const cached = loaded.get(family);
+  if (cached) return cached;
+  const { files, weights } = TYPEFACES[family];
+  const dir = path.join(path.dirname(require.resolve(`@fontsource/${files}/package.json`)), "files");
+  const fonts = weights.flatMap((weight) =>
     (
       [
-        ["latin", "Inter"],
-        ["latin-ext", "Inter Ext"],
+        ["latin", family],
+        ["latin-ext", `${family} Ext`],
       ] as const
-    ).map(([subset, name]) => ({ name, data: fs.readFileSync(path.join(dir, `inter-${subset}-${weight}-normal.woff`)), weight, style: "normal" as const })),
+    ).map(([subset, name]) => ({ name, data: fs.readFileSync(path.join(dir, `${files}-${subset}-${weight}-normal.woff`)), weight, style: "normal" as const })),
   );
+  loaded.set(family, fonts);
   return fonts;
 }
 
@@ -125,27 +140,28 @@ function layout({ visual, style, brandName, materialsDir }: RenderInput): Node {
   const pad = 84;
   const logoData = readMaterial(materialsDir, style.logo);
   const logoSize = logoData ? pngSize(logoData) : null;
-  const logoHeight = 52;
+  const logoHeight = style.logoHeight;
+  const heading = TYPEFACES[style.font].heading;
 
   const footer = el(
     "div",
     { display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `3px solid ${style.accent}`, paddingTop: 30, marginTop: 36 },
     logoData && logoSize
       ? { type: "img", props: { src: dataUri(style.logo!, logoData), width: Math.round((logoSize.width / logoSize.height) * logoHeight), height: logoHeight } }
-      : el("div", { display: "flex", fontSize: 34, fontWeight: 700, color: style.foreground }, brandName),
+      : el("div", { display: "flex", fontSize: 34, fontWeight: heading, color: style.foreground }, brandName),
     style.footer ? el("div", { display: "flex", fontSize: 28, color: style.muted }, style.footer) : null,
   );
 
   const source = visual.source ? el("div", { display: "flex", fontSize: 24, lineHeight: 1.4, color: style.muted, marginTop: 28 }, visual.source) : null;
   const detail = (size: number) => (visual.detail ? el("div", { display: "flex", fontSize: size, lineHeight: 1.35, color: style.muted, marginTop: 26 }, visual.detail) : null);
-  const headline = (size: number) => el("div", { display: "flex", fontSize: headlineSize(visual.headline, size), fontWeight: 700, lineHeight: 1.14, letterSpacing: -1.5, color: style.foreground }, visual.headline);
+  const headline = (size: number) => el("div", { display: "flex", fontSize: headlineSize(visual.headline, size), fontWeight: heading, lineHeight: 1.14, letterSpacing: -1.5, color: style.foreground }, visual.headline);
 
   let body: Node;
   if (visual.kind === "stat") {
     body = el(
       "div",
       { display: "flex", flexDirection: "column", flexGrow: 1, justifyContent: "center" },
-      el("div", { display: "flex", fontSize: 250, fontWeight: 700, lineHeight: 1, letterSpacing: -8, color: style.accent }, visual.stat ?? ""),
+      el("div", { display: "flex", fontSize: 250, fontWeight: heading, lineHeight: 1, letterSpacing: -8, color: style.accent }, visual.stat ?? ""),
       el("div", { display: "flex", marginTop: 34 }, headline(64)),
       detail(34),
       source,
@@ -179,12 +195,12 @@ function layout({ visual, style, brandName, materialsDir }: RenderInput): Node {
 
   // satori sizes the root as a content box: width and height exclude the padding.
   const inner = SIZE - pad * 2;
-  return el("div", { display: "flex", flexDirection: "column", width: inner, height: inner, padding: pad, backgroundColor: style.background, fontFamily: "Inter, Inter Ext" }, body, footer);
+  return el("div", { display: "flex", flexDirection: "column", width: inner, height: inner, padding: pad, backgroundColor: style.background, fontFamily: `${style.font}, ${style.font} Ext` }, body, footer);
 }
 
 /** Renders a post's image as a 1200 x 1200 PNG. */
 export async function renderVisual(input: RenderInput): Promise<Buffer> {
   // satori takes React-shaped elements; plain objects of the same shape work and avoid the dependency.
-  const svg = await satori(layout(input) as unknown as Parameters<typeof satori>[0], { width: SIZE, height: SIZE, fonts: loadFonts() });
+  const svg = await satori(layout(input) as unknown as Parameters<typeof satori>[0], { width: SIZE, height: SIZE, fonts: loadFonts(input.style.font) });
   return Buffer.from(new Resvg(svg, { fitTo: { mode: "width", value: SIZE } }).render().asPng());
 }
