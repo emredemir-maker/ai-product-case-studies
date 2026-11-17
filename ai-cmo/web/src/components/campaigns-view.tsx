@@ -105,7 +105,7 @@ function NewCampaignForm({ state, onSubmit }: { state: DeskState; onSubmit: (inp
   )
 }
 
-function CampaignCard(props: { campaign: Campaign; state: DeskState; run: (path: string, body?: unknown) => void }) {
+function CampaignCard(props: { campaign: Campaign; state: DeskState; run: (path: string, body?: unknown) => Promise<void> }) {
   const { campaign, state, run } = props
   const [open, setOpen] = useState(campaign.status === "active")
   const posts = state.drafts.filter((d) => d.campaignId === campaign.id).sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
@@ -207,6 +207,8 @@ function CampaignCard(props: { campaign: Campaign; state: DeskState; run: (path:
                     key={draft.id}
                     draft={draft}
                     canPublish={state.canPublish}
+                    canRevise={state.canRevise}
+                    run={run}
                     onApprove={(now) => run(`/api/drafts/${draft.id}/approve`, { now })}
                     onShared={() => run(`/api/drafts/${draft.id}/shared`, {})}
                     onReject={(reason) => run(`/api/drafts/${draft.id}/reject`, { reason })}
@@ -221,7 +223,7 @@ function CampaignCard(props: { campaign: Campaign; state: DeskState; run: (path:
   )
 }
 
-export function CampaignsView({ state, run }: { state: DeskState; run: (path: string, body?: unknown) => void }) {
+export function CampaignsView({ state, run }: { state: DeskState; run: (path: string, body?: unknown) => Promise<void> }) {
   return (
     <section className="space-y-4">
       {state.planning.error && (

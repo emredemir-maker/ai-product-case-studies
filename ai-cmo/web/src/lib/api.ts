@@ -16,6 +16,7 @@ export interface DeskState {
   canReview: boolean
   review: { running: boolean; error: string | null }
   canIllustrate: boolean
+  canRevise: boolean
   illustrating: { running: boolean; error: string | null }
   canPlan: boolean
   planning: { running: boolean; error: string | null }

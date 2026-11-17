@@ -132,6 +132,8 @@ npm run cmo -- channels
 npm run cmo -- skills
 ```
 
+Each waiting post can be changed before it goes out: "Kısalt" (about half the length), "Netleştir" (easier to read, no longer), "Değiştir" (as you instruct), or edited by hand. The agent rewrites from the post alone, so it adds no new facts. Every change keeps the previous text and can be undone. From the terminal: `npm run cmo -- revise a1b2c3 shorten`, `clarify`, or an instruction in quotes.
+
 Approving and rejecting also work from the interface. Without Postiz, each post has "Metni kopyala" (copy) and "Paylaştım" (shared by hand), which records the post as published so the agent does not propose the same topic again.
 
 ## Running on a server

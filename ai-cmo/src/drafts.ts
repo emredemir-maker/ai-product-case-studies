@@ -28,6 +28,8 @@ export interface Draft {
   campaignId?: string;
   /** File in the materials folder to attach when sharing, e.g. a catalog. */
   attachment?: string;
+  /** The text before the last revision or edit, kept so that change can be undone. */
+  previousContent?: string;
   /** The image to share with the post, rendered on demand from this description. */
   visual?: Visual;
 }

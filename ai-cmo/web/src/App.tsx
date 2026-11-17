@@ -373,6 +373,8 @@ export default function App() {
                       key={draft.id}
                       draft={draft}
                       canPublish={state.canPublish}
+                      canRevise={state.canRevise}
+                      run={run}
                       onApprove={(now) => run(`/api/drafts/${draft.id}/approve`, { now })}
                       onShared={() => run(`/api/drafts/${draft.id}/shared`, {})}
                       onReject={(reason) => run(`/api/drafts/${draft.id}/reject`, { reason })}

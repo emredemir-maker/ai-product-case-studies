@@ -8,6 +8,7 @@ import type { PostizClient } from "./postiz.ts";
 import { approveDraft, markDraftShared, rejectDraft } from "./publish.ts";
 import type { RecommendationStore } from "./recommendations.ts";
 import type { Run, RunStore } from "./review.ts";
+import { REVISE_MODES, type ReviseMode, editDraft, undoDraftChange } from "./revise.ts";
 
 export interface UiDeps {
   /** Folder holding the built interface (web/dist): index.html and its assets. */
@@ -20,6 +21,8 @@ export interface UiDeps {
   site: string | null;
   /** Starts a review. Absent when the review cannot run (no watch file). */
   review?: () => Promise<Run>;
+  /** Has the agent rewrite one waiting post. Absent when it cannot run (no brand file). */
+  revise?: (id: string, mode: ReviseMode, instruction?: string) => Promise<unknown>;
   /** Images for posts. Absent when they cannot be drawn (no brand file). */
   visuals?: {
     /** Renders a post's image as PNG. */
@@ -158,6 +161,7 @@ export function createUiServer(deps: UiDeps): http.Server {
     recommendations: deps.recommendations.list().reverse(),
     illustrating,
     canIllustrate: Boolean(deps.visuals),
+    canRevise: Boolean(deps.revise),
     drafts: deps.drafts
       .list()
       .reverse()
@@ -192,6 +196,21 @@ export function createUiServer(deps: UiDeps): http.Server {
       const status = body.status;
       if (status !== "open" && status !== "done" && status !== "dismissed") throw new HttpError(400, "Unknown status");
       deps.recommendations.decide(rec[1]!, status, typeof body.reason === "string" ? body.reason : undefined);
+      return state();
+    }
+    const text = /^\/api\/drafts\/([0-9a-f]+)\/(revise|edit|undo)$/.exec(pathname);
+    if (text) {
+      if (text[2] === "edit") {
+        if (typeof body.content !== "string") throw new HttpError(400, "Missing content");
+        editDraft(deps.drafts, text[1]!, body.content);
+      } else if (text[2] === "undo") {
+        undoDraftChange(deps.drafts, text[1]!);
+      } else {
+        if (!deps.revise) throw new HttpError(400, "Set up brand.json to revise posts.");
+        if (!REVISE_MODES.includes(body.mode as ReviseMode)) throw new HttpError(400, "Unknown revision");
+        // Answered when the rewrite is done; the page shows the post as busy meanwhile.
+        await deps.revise(text[1]!, body.mode as ReviseMode, typeof body.instruction === "string" ? body.instruction : undefined);
+      }
       return state();
     }
     const draft = /^\/api\/drafts\/([0-9a-f]+)\/(approve|reject|shared)$/.exec(pathname);

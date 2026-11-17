@@ -13,6 +13,7 @@ import { approveDraft, rejectDraft } from "./publish.ts";
 import { RecommendationStore } from "./recommendations.ts";
 import { RunStore, loadWatch, runReview } from "./review.ts";
 import { SnapshotStore } from "./site.ts";
+import { type ReviseMode, reviseDraft } from "./revise.ts";
 import { createUiServer } from "./ui.ts";
 import { renderVisual, screenshotExists } from "./visual.ts";
 import { runVisuals } from "./visuals-run.ts";
@@ -32,6 +33,8 @@ const USAGE = `Usage: cmo <command>
   materials                 List the files a campaign can draw on
   visuals                   Add images to waiting posts that have none
   visual <id> [file.png]    Write a post's image to a file
+  revise <id> shorten|clarify|"<instruction>"
+                            Rewrite one waiting post: shorter, clearer, or as instructed
   todo [status]             List recommendations (open | done | dismissed)
   prompt <id>               Print a recommendation's prompt for a coding agent
   ui [--every <hours>]      Open the local interface; optionally run a review on an interval
@@ -88,6 +91,8 @@ async function main() {
     const brand = loadBrand(config.brandFile);
     return renderVisual({ visual: draft.visual!, style: brand.visual, brandName: brand.name, materialsDir: config.materialsDir });
   };
+  const revise = (id: string, mode: ReviseMode, instruction?: string) =>
+    reviseDraft({ config, brand: loadBrand(config.brandFile), skills: discoverSkills(config.skillsDir), drafts: store, postiz }, id, mode, instruction);
   const suggestVisuals = (onActivity?: (line: string) => void) =>
     runVisuals({ config, brand: loadBrand(config.brandFile), skills: discoverSkills(config.skillsDir), drafts: store, postiz, onActivity });
   const planCampaign = (input: unknown, onActivity?: (line: string) => void) =>
@@ -171,6 +176,15 @@ async function main() {
       if (result.draftIds.length) console.log(`Cost: ${formatUsage(result.usage)}`);
       break;
     }
+    case "revise": {
+      const id = requireArg(positional[0], "draft id");
+      const how = requireArg(positional.slice(1).join(" ").trim(), 'what to do: "shorten", "clarify", or an instruction');
+      const mode: ReviseMode = how === "shorten" || how === "clarify" ? how : "change";
+      const { draft, usage } = await revise(id, mode, mode === "change" ? how : undefined);
+      printDraft(draft);
+      console.log(`Was ${draft.previousContent?.length} characters, now ${draft.content.length}. Cost: ${formatUsage(usage)}`);
+      break;
+    }
     case "visual": {
       const draft = store.get(requireArg(positional[0], "draft id"));
       if (!draft.visual) throw new Error(`Draft ${draft.id} has no image. Run: cmo visuals`);
@@ -241,6 +255,7 @@ async function main() {
         site: canReview ? new URL(loadWatch(config.watchFile, config.reposDir).site.url).origin : null,
         review: canReview ? () => review() : undefined,
         campaigns: fs.existsSync(config.brandFile) ? { store: campaigns, materialsDir: config.materialsDir, plan: (input) => planCampaign(input) } : undefined,
+        revise: fs.existsSync(config.brandFile) ? (id, mode, instruction) => revise(id, mode, instruction) : undefined,
         visuals: fs.existsSync(config.brandFile)
           ? { render: renderDraftVisual, screenshotReady: (draft) => screenshotExists(config.materialsDir, draft.visual), suggest: () => suggestVisuals() }
           : undefined,

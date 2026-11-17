@@ -1,6 +1,7 @@
 import { Check, Copy, Paperclip } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
+import { PostTextTools } from "@/components/post-text-tools"
 import { PostVisual } from "@/components/post-visual"
 import { ReasonForm } from "@/components/reason-form"
 import {
@@ -20,7 +21,15 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import type { Draft } from "@/lib/api"
 import { DRAFT_STATUS, dayTime, platformName } from "@/lib/tr"
 
-export function PostCard(props: { draft: Draft; canPublish: boolean; onApprove: (now: boolean) => void; onShared: () => void; onReject: (reason: string) => void }) {
+export function PostCard(props: {
+  draft: Draft
+  canPublish: boolean
+  canRevise: boolean
+  run: (path: string, body?: unknown) => Promise<void>
+  onApprove: (now: boolean) => void
+  onShared: () => void
+  onReject: (reason: string) => void
+}) {
   const { draft, canPublish } = props
   const [rejecting, setRejecting] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -56,6 +65,7 @@ export function PostCard(props: { draft: Draft; canPublish: boolean; onApprove: 
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="max-w-[40em] break-words whitespace-pre-wrap">{draft.content}</p>
+        {pending && <PostTextTools draft={draft} canRevise={props.canRevise} run={props.run} />}
         <PostVisual draft={draft} />
         {draft.attachment && (
           <p className="flex items-center gap-1.5 text-sm font-medium">
