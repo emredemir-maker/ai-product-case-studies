@@ -25,10 +25,11 @@ export function RunCard({ run }: { run: Run }) {
         <CardTitle className="font-display text-lg">{dayTime(run.at)}</CardTitle>
         <CardDescription>
           {run.pagesChecked} sayfa incelendi, {run.recommendationIds.length} öneri, {run.draftIds.length} gönderi
+          {run.complete === false && <span className="font-medium text-destructive">. Yarıda kesildi; sonraki kontrol aynı değişiklikleri yeniden inceler</span>}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="max-w-[46em] whitespace-pre-wrap">{run.summary}</p>
+        {run.summary && <p className="max-w-[46em] whitespace-pre-wrap">{run.summary}</p>}
         {run.commits.length > 0 && (
           <Section
             label="Üründeki değişiklikler"

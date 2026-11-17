@@ -217,7 +217,7 @@ export default function App() {
 
         {view === "todo" && (
           <>
-            {last && (
+            {last?.summary && (
               <section className="rounded-xl border bg-card p-5">
                 <h2 className="text-sm font-semibold text-muted-foreground">Son kontrolün özeti</h2>
                 <p className="mt-1.5 max-w-[60em] whitespace-pre-wrap">{last.summary}</p>

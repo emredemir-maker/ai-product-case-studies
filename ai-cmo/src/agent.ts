@@ -52,6 +52,10 @@ ${renderSkillIndex(skills) || "(none installed)"}
 
 Every factual claim in a post must come from the brand context above or from research you do in this session. When a post depends on something current or external (a statistic, a trend, a competitor move), research it first and keep the claim to what the source supports. If you cannot support a claim, leave it out.
 
+# Language
+
+Write everything the reviewer reads in ${brand.language}: the posts, their rationale and your summary.
+
 # When you finish
 
 Reply with a short summary for the reviewer: the plan in two or three sentences, then the drafts you saved with their id, channel and scheduled time. Mention anything you could not do and why.`;
@@ -179,7 +183,11 @@ export async function runLoop(deps: Pick<AgentDeps, "config" | "client" | "onAct
   const client = deps.client ?? new Anthropic();
   const runner = client.beta.messages.toolRunner({
     model: deps.config.model,
-    max_tokens: 16000,
+    // One turn can carry several recommendations, each with a long prompt for a coding agent.
+    // 16k was not enough in practice: the turn was cut off and its tool calls never ran.
+    // Streaming is what lets a response this long run without hitting an HTTP timeout.
+    max_tokens: 64000,
+    stream: true,
     max_iterations: 60,
     // Full history on every turn: a plain stateless request, with the stable prefix cached.
     thread: false,
@@ -195,8 +203,12 @@ export async function runLoop(deps: Pick<AgentDeps, "config" | "client" | "onAct
   });
 
   let last: Anthropic.Beta.BetaMessage | undefined;
-  for await (const message of runner) {
+  for await (const stream of runner) {
+    const message = await stream.finalMessage();
     last = message;
+    // A turn cut off at the length limit may end in a half-written tool call; the runner does not
+    // execute any of that turn's calls, so do not report them as done.
+    if (message.stop_reason === "max_tokens") break;
     for (const block of message.content) {
       if (block.type === "tool_use" || block.type === "server_tool_use") {
         deps.onActivity?.(describeToolCall(block.name, block.input));

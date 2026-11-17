@@ -96,6 +96,10 @@ test("a review crawls the site, lets the agent read a page, and records recommen
   assert.match(input, /Problems gathering data\n- Could not read commits from app/);
   assert.match(first!.body.system, /growth lead for Acme/);
   assert.match(first!.body.system, /- plg-review: /);
+  assert.match(first!.body.system, /Write every recommendation field \(title, why, action, agent_prompt\), every post and your closing note in English/);
+  assert.equal(first!.body.stream, true);
+  assert.equal(first!.body.max_tokens, 64000);
+  assert.equal(run.complete, true);
   const saveTool = first!.body.tools.find((t: { name: string }) => t.name === "save_recommendation");
   assert.ok("agent_prompt" in saveTool.input_schema.properties);
   assert.equal(saveTool.input_schema.required.includes("agent_prompt"), false);
@@ -105,6 +109,45 @@ test("a review crawls the site, lets the agent read a page, and records recommen
   assert.match(text("t1"), /HTTP 200.*Free plan and Pro at \$20/);
   assert.match(text("t2"), /only pages on http:\/\/127\.0\.0\.1/);
 
+  await site.close();
+  await api.close();
+});
+
+test("a review cut off at the length limit saves nothing from that turn and keeps the old baseline", async () => {
+  const site = await fakeSite();
+  const api = await startServer(() => [
+    200,
+    message(
+      [{ type: "tool_use", id: "t1", name: "save_recommendation", input: { area: "seo", priority: "high", title: "Half-written", why: "w", action: "a", evidence: [] } }],
+      "max_tokens",
+    ),
+  ]);
+  const dir = tmpDir();
+  const activity: string[] = [];
+  const deps: ReviewDeps = {
+    config: { model: "claude-opus-5-5", effort: "high", webSearch: false },
+    brand,
+    skills: [],
+    drafts: new DraftStore(path.join(dir, "drafts.json")),
+    postiz: null,
+    client: new Anthropic({ apiKey: "test", baseURL: api.url, maxRetries: 0 }),
+    watch: WatchSchema.parse({ site: { url: site.url } }),
+    recommendations: new RecommendationStore(path.join(dir, "recommendations.json")),
+    snapshots: new SnapshotStore(path.join(dir, "snapshots")),
+    runs: new RunStore(path.join(dir, "runs.json")),
+    onActivity: (line) => activity.push(line),
+  };
+
+  const run = await runReview(deps);
+
+  assert.equal(api.requests.length, 1, "the loop stops; the cut-off turn is not continued");
+  assert.equal(run.complete, false);
+  assert.match(run.problems[0]!, /cut off at the response length limit/);
+  assert.deepEqual(deps.recommendations.list(), []);
+  assert.deepEqual(activity, [], "calls that never ran are not reported as done");
+  assert.equal(deps.snapshots.latest(), null, "no new baseline");
+  assert.equal(deps.runs.latest()!.complete, false);
+  assert.equal(deps.runs.latestComplete(), undefined);
   await site.close();
   await api.close();
 });

@@ -55,6 +55,8 @@ export interface Run {
   summary: string;
   recommendationIds: string[];
   draftIds: string[];
+  /** False when the agent was cut off. Such a review does not become the baseline for the next one. */
+  complete: boolean;
 }
 
 export class RunStore {
@@ -67,6 +69,10 @@ export class RunStore {
   }
   latest(): Run | undefined {
     return this.file.read().at(-1);
+  }
+  /** The last review that ran to the end; older records without the flag count as complete. */
+  latestComplete(): Run | undefined {
+    return this.file.read().findLast((r) => r.complete !== false);
   }
   add(run: Run): void {
     this.file.write([...this.file.read(), run].slice(-50));
@@ -112,6 +118,14 @@ Available skills:
 
 ${renderSkillIndex(skills) || "(none installed)"}
 
+# Scope
+
+Recommendations are about how the product is found, understood and adopted: search, AI answer engines, product-led growth, and the content that serves them. Commits will also show you things outside that, such as an incident, a data fix or a customer who needs a follow-up. Do not turn those into recommendations; if one seems important enough that the founder should not miss it, say so in one sentence of your closing note.
+
+# Language
+
+The founder reads ${brand.language}. Write every recommendation field (title, why, action, agent_prompt), every post and your closing note in ${brand.language}. Keep code, file names, URLs and quoted page text as they are.
+
 # When you finish
 
 Reply with a short note to the founder: what changed since the last review in two or three sentences, then what you recommend first and why. Plain prose, no headings.`;
@@ -138,7 +152,7 @@ function buildReviewTools(deps: ReviewDeps, origin: string, recommendationIds: s
     inputSchema: z.object({
       area: z.enum(AREAS).describe("seo: search engines. geo: AI answer engines. plg: product-led growth. content: content to create or update."),
       priority: z.enum(PRIORITIES),
-      title: z.string().min(1).max(140).describe("The change to make, as an instruction"),
+      title: z.string().min(1).max(140).describe("The change to make, as an instruction, in the founder's language"),
       why: z.string().min(1).describe("What you observed and why it matters, one or two sentences"),
       action: z.string().min(1).describe("The concrete change, including the proposed text when the fix is text"),
       evidence: z.array(z.string()).describe("Page URLs or commit hashes this rests on"),
@@ -222,7 +236,7 @@ const DAY = 86_400_000;
 /** Crawls the site, reads recent commits, and has the agent turn them into recommendations and post drafts. */
 export async function runReview(deps: ReviewDeps): Promise<Run> {
   const previous = deps.snapshots.latest();
-  const lastRun = deps.runs.latest();
+  const lastRun = deps.runs.latestComplete();
   const site = await crawlSite(deps.watch.site.url, deps.watch.site.maxPages);
   if (!site.pages.length) throw new Error(`Could not fetch any page from ${deps.watch.site.url}`);
   const diff = diffSites(previous, site);
@@ -251,7 +265,14 @@ export async function runReview(deps: ReviewDeps): Promise<Run> {
     tools: [...buildReviewTools(deps, site.origin, recommendationIds), ...buildTools(deps, draftIds)],
     user: renderReviewInput(site, previous, diff, sources, commits, problems),
   });
-  if (result.stopReason !== "end_turn") problems.push(`The review stopped early (${result.stopReason}); it may be incomplete.`);
+  const complete = result.stopReason === "end_turn";
+  if (!complete) {
+    problems.push(
+      result.stopReason === "max_tokens"
+        ? "The review was cut off at the response length limit before it finished. Anything already saved is kept; the next review starts from the same baseline."
+        : `The review stopped early (${result.stopReason}). Anything already saved is kept; the next review starts from the same baseline.`,
+    );
+  }
 
   const run: Run = {
     at: site.takenAt,
@@ -264,9 +285,11 @@ export async function runReview(deps: ReviewDeps): Promise<Run> {
     summary: result.text,
     recommendationIds,
     draftIds,
+    complete,
   };
-  // Saved only after the agent finished, so a failed review is retried against the same baseline.
-  deps.snapshots.save(site);
+  // The snapshot becomes the new baseline only when the review ran to the end, so a failed or
+  // cut-off review is retried against the same changes and commits.
+  if (complete) deps.snapshots.save(site);
   deps.runs.add(run);
   return run;
 }

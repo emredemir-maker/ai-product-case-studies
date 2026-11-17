@@ -23,6 +23,10 @@ export async function startServer(handler: (req: Recorded) => [number, unknown, 
       const recorded: Recorded = { method: req.method!, url: req.url!, headers: req.headers, body: raw ? JSON.parse(raw) : undefined };
       requests.push(recorded);
       const [status, body, type] = handler(recorded);
+      if (status === 200 && !type && recorded.body?.stream === true) {
+        res.writeHead(200, { "Content-Type": "text/event-stream" });
+        return void res.end(toEventStream(body as StreamableMessage));
+      }
       res.writeHead(status, { "Content-Type": type ?? "application/json" });
       res.end(type ? (body as string) : JSON.stringify(body));
     });
@@ -30,6 +34,31 @@ export async function startServer(handler: (req: Recorded) => [number, unknown, 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
   return { url: `http://127.0.0.1:${port}`, requests, close: () => new Promise((resolve) => server.close(resolve)) };
+}
+
+interface StreamableMessage {
+  content: ({ type: "text"; text: string } | { type: "tool_use"; id: string; name: string; input: unknown })[];
+  stop_reason: string;
+  usage: unknown;
+  [key: string]: unknown;
+}
+
+/** Renders a Messages API response the way the API streams it, for requests made with `stream: true`. */
+function toEventStream(message: StreamableMessage): string {
+  const events: [string, unknown][] = [["message_start", { type: "message_start", message: { ...message, content: [], stop_reason: null } }]];
+  message.content.forEach((block, index) => {
+    if (block.type === "text") {
+      events.push(["content_block_start", { type: "content_block_start", index, content_block: { type: "text", text: "" } }]);
+      events.push(["content_block_delta", { type: "content_block_delta", index, delta: { type: "text_delta", text: block.text } }]);
+    } else {
+      events.push(["content_block_start", { type: "content_block_start", index, content_block: { ...block, input: {} } }]);
+      events.push(["content_block_delta", { type: "content_block_delta", index, delta: { type: "input_json_delta", partial_json: JSON.stringify(block.input) } }]);
+    }
+    events.push(["content_block_stop", { type: "content_block_stop", index }]);
+  });
+  events.push(["message_delta", { type: "message_delta", delta: { stop_reason: message.stop_reason, stop_sequence: null }, usage: { output_tokens: 1 } }]);
+  events.push(["message_stop", { type: "message_stop" }]);
+  return events.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join("");
 }
 
 export const future = (hours = 24) => new Date(Date.now() + hours * 3_600_000).toISOString();

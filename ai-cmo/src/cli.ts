@@ -179,7 +179,7 @@ async function main() {
         const tick = () => review().then((r) => console.log(`Review done: ${r.recommendationIds.length} recommendation(s)`), (e) => console.error(`Review failed: ${e instanceof Error ? e.message : e}`));
         // Run now only when the last review is older than the interval, so restarts don't re-run it.
         const last = runs.latest();
-        if (!last || Date.now() - new Date(last.at).getTime() > hours * 3_600_000) void tick();
+        if (!last || last.complete === false || Date.now() - new Date(last.at).getTime() > hours * 3_600_000) void tick();
         setInterval(tick, hours * 3_600_000);
       }
       break;
