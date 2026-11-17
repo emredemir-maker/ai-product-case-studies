@@ -218,6 +218,13 @@ test("the interface serves state, applies decisions, and refuses writes from oth
   assert.match((await refused.json()).error, /Postiz is not configured/);
   assert.equal((await post(`/api/drafts/${draft.id}/reject`, { reason: "Too short" })).status, 200);
   assert.equal(drafts.get(draft.id).rejectionReason, "Too short");
+  // A post shared by hand is recorded once and cannot be decided again.
+  const byHand = drafts.create({ platform: "linkedin", content: "Hello", scheduledAt: future(), rationale: "r" });
+  assert.equal((await post(`/api/drafts/${byHand.id}/shared`, {})).status, 200);
+  assert.equal(drafts.get(byHand.id).status, "shared");
+  assert.ok(drafts.get(byHand.id).decidedAt);
+  assert.equal((await post(`/api/drafts/${byHand.id}/shared`, {})).status, 400);
+  assert.equal((await post(`/api/drafts/${byHand.id}/reject`, {})).status, 400);
 
   const started = await (await post("/api/review", {})).json();
   assert.equal(started.review.running, true);

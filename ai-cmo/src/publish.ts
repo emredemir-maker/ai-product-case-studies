@@ -62,6 +62,13 @@ export async function approveDraft(
   });
 }
 
+/** Records that the person copied the post and published it themselves. */
+export function markDraftShared(store: DraftStore, id: string): Draft {
+  const draft = store.get(id);
+  if (draft.status !== "pending") throw new Error(`Draft ${id} is ${draft.status}, not pending`);
+  return store.update(id, { status: "shared", decidedAt: new Date().toISOString() });
+}
+
 export function rejectDraft(store: DraftStore, id: string, reason?: string): Draft {
   const draft = store.get(id);
   if (draft.status !== "pending") throw new Error(`Draft ${id} is ${draft.status}, not pending`);

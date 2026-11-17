@@ -1,6 +1,8 @@
 import { JsonList, newId } from "./store.ts";
 
-export type DraftStatus = "pending" | "scheduled" | "rejected";
+/** `shared` means the person posted it by hand, outside Postiz. */
+export type DraftStatus = "pending" | "scheduled" | "shared" | "rejected";
+export const DRAFT_STATUSES = ["pending", "scheduled", "shared", "rejected"] as const satisfies readonly DraftStatus[];
 
 export interface Draft {
   id: string;

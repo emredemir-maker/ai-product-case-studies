@@ -5,7 +5,7 @@ import { runAgent } from "./agent.ts";
 import { loadBrand } from "./brand.ts";
 import { Auth } from "./auth.ts";
 import { loadConfig } from "./config.ts";
-import { type Draft, DraftStore, type DraftStatus } from "./drafts.ts";
+import { DRAFT_STATUSES, type Draft, DraftStore, type DraftStatus } from "./drafts.ts";
 import { PostizClient, PostizError } from "./postiz.ts";
 import { approveDraft, rejectDraft } from "./publish.ts";
 import { RecommendationStore } from "./recommendations.ts";
@@ -17,7 +17,7 @@ import { discoverSkills } from "./skills.ts";
 const USAGE = `Usage: cmo <command>
 
   plan "<brief>"            Run the agent on a brief; it saves drafts for review
-  drafts [status]           List drafts (pending | scheduled | rejected)
+  drafts [status]           List drafts (pending | scheduled | shared | rejected)
   show <id>                 Show one draft in full
   approve <id> [--now] [--at <ISO date>] [--channel <id>]
                             Send a draft to Postiz (scheduled, or immediately with --now)
@@ -111,7 +111,7 @@ async function main() {
     }
     case "drafts": {
       const status = positional[0] as DraftStatus | undefined;
-      if (status && !["pending", "scheduled", "rejected"].includes(status)) throw new Error(`Unknown status: ${status}`);
+      if (status && !DRAFT_STATUSES.includes(status)) throw new Error(`Unknown status: ${status}`);
       const list = store.list(status);
       console.log(list.length ? list.map(oneLine).join("\n") : "No drafts.");
       break;

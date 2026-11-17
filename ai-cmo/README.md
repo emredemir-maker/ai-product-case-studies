@@ -89,7 +89,7 @@ npm run cmo -- channels
 npm run cmo -- skills
 ```
 
-Approving and rejecting also work from the interface.
+Approving and rejecting also work from the interface. Without Postiz, each post has "Metni kopyala" (copy) and "Paylaştım" (shared by hand), which records the post as published so the agent does not propose the same topic again.
 
 ## Running on a server
 

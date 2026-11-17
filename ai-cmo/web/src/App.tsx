@@ -225,7 +225,7 @@ export default function App() {
           </Stat>
           <Stat label="Onay bekleyen gönderi">
             <p className="font-display text-4xl leading-none font-bold tabular-nums">{pendingCount}</p>
-            <p className="text-sm text-muted-foreground">{state.canPublish ? "Onayladığınızda Postiz'e gider" : "Yayınlama kapalı: Postiz anahtarı yok"}</p>
+            <p className="text-sm text-muted-foreground">{state.canPublish ? "Onayladığınızda Postiz'e gider" : "Kopyalayıp elle paylaşılır"}</p>
           </Stat>
           <Stat label="Son kontrol">
             <p className="font-display text-2xl leading-tight font-bold">{last ? ago(last.at) : "Yapılmadı"}</p>
@@ -341,7 +341,7 @@ export default function App() {
               <Empty>Henüz gönderi yok. Bir kontrol duyurmaya değer bir şey bulduğunda taslak burada onayınıza sunulur.</Empty>
             ) : (
               <>
-                {!state.canPublish && <p className="text-sm text-muted-foreground">Yayınlama kapalı: gönderileri onaylamak için .env dosyasına POSTIZ_API_KEY ekleyin.</p>}
+                {!state.canPublish && <p className="text-sm text-muted-foreground">Metni kopyalayıp kendiniz paylaşın, ardından “Paylaştım” deyin; böylece aynı konu yeniden önerilmez.</p>}
                 <div className="grid items-start gap-3 xl:grid-cols-2">
                   {state.drafts.map((draft) => (
                     <PostCard
@@ -349,6 +349,7 @@ export default function App() {
                       draft={draft}
                       canPublish={state.canPublish}
                       onApprove={(now) => run(`/api/drafts/${draft.id}/approve`, { now })}
+                      onShared={() => run(`/api/drafts/${draft.id}/shared`, {})}
                       onReject={(reason) => run(`/api/drafts/${draft.id}/reject`, { reason })}
                     />
                   ))}

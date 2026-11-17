@@ -16,7 +16,7 @@ export const PRIORITY: Record<Recommendation["priority"], { label: string; short
 }
 
 export const REC_STATUS: Record<Recommendation["status"], string> = { open: "Açık", done: "Yapıldı", dismissed: "Kapatıldı" }
-export const DRAFT_STATUS: Record<Draft["status"], string> = { pending: "Onay bekliyor", scheduled: "Zamanlandı", rejected: "Reddedildi" }
+export const DRAFT_STATUS: Record<Draft["status"], string> = { pending: "Onay bekliyor", scheduled: "Zamanlandı", shared: "Elle paylaşıldı", rejected: "Reddedildi" }
 
 /** GEO Optimizer's score bands. */
 const BAND: Record<string, string> = { critical: "Kritik", foundation: "Temel", good: "İyi", excellent: "Mükemmel" }

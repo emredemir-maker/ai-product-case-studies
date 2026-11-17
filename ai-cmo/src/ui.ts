@@ -4,7 +4,7 @@ import path from "node:path";
 import type { Auth } from "./auth.ts";
 import type { DraftStore } from "./drafts.ts";
 import type { PostizClient } from "./postiz.ts";
-import { approveDraft, rejectDraft } from "./publish.ts";
+import { approveDraft, markDraftShared, rejectDraft } from "./publish.ts";
 import type { RecommendationStore } from "./recommendations.ts";
 import type { Run, RunStore } from "./review.ts";
 
@@ -118,9 +118,10 @@ export function createUiServer(deps: UiDeps): http.Server {
       deps.recommendations.decide(rec[1]!, status, typeof body.reason === "string" ? body.reason : undefined);
       return state();
     }
-    const draft = /^\/api\/drafts\/([0-9a-f]+)\/(approve|reject)$/.exec(pathname);
+    const draft = /^\/api\/drafts\/([0-9a-f]+)\/(approve|reject|shared)$/.exec(pathname);
     if (draft) {
       if (draft[2] === "approve") await approveDraft(deps.drafts, deps.postiz, draft[1]!, { now: body.now === true });
+      else if (draft[2] === "shared") markDraftShared(deps.drafts, draft[1]!);
       else rejectDraft(deps.drafts, draft[1]!, typeof body.reason === "string" && body.reason ? body.reason : undefined);
       return state();
     }

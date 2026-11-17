@@ -4,7 +4,7 @@ import type { BetaRunnableTool } from "@anthropic-ai/sdk/lib/tools/BetaRunnableT
 import { z } from "zod";
 import { type Brand, renderBrand } from "./brand.ts";
 import type { Config } from "./config.ts";
-import type { DraftStore } from "./drafts.ts";
+import { DRAFT_STATUSES, type DraftStore } from "./drafts.ts";
 import type { PostizClient } from "./postiz.ts";
 import { type Skill, readSkill, renderSkillIndex } from "./skills.ts";
 
@@ -36,7 +36,7 @@ ${renderBrand(brand)}
 
 You do not publish. Every post you write goes into a review queue with save_draft, and a person approves or rejects each one before anything is sent to a social platform. Because of that, write each draft as the final text you would stand behind, and use the rationale field to tell the reviewer why this post, on this channel, at this time. Never say a post was published or scheduled; say it is waiting for review.
 
-Call list_drafts early. Rejected drafts carry the reviewer's reason, which is the best signal you have about what this team wants, and pending or scheduled drafts show what is already covered so you do not repeat it.
+Call list_drafts early. Rejected drafts carry the reviewer's reason, which is the best signal you have about what this team wants, and pending, scheduled or shared drafts show what is already covered so you do not repeat it.
 
 # Channels
 
@@ -105,9 +105,9 @@ export function buildTools(deps: AgentDeps, savedIds: string[] = []) {
   const listDrafts = betaZodTool({
     name: "list_drafts",
     description:
-      "List drafts already in the review queue with their status (pending, scheduled, rejected). Rejected drafts include the reviewer's reason. Call this before planning so you build on feedback and avoid duplicates.",
+      "List drafts already in the review queue with their status (pending, scheduled through the publishing service, shared by hand, rejected). Rejected drafts include the reviewer's reason. Call this before planning so you build on feedback and avoid duplicates.",
     inputSchema: z.object({
-      status: z.enum(["pending", "scheduled", "rejected"]).optional().describe("Only drafts with this status"),
+      status: z.enum(DRAFT_STATUSES).optional().describe("Only drafts with this status"),
     }),
     run: ({ status }) => {
       const list = drafts

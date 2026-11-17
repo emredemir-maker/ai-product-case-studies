@@ -1,4 +1,6 @@
+import { Check, Copy } from "lucide-react"
 import { useState } from "react"
+import { toast } from "sonner"
 import { ReasonForm } from "@/components/reason-form"
 import {
   AlertDialog,
@@ -17,10 +19,21 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import type { Draft } from "@/lib/api"
 import { DRAFT_STATUS, dayTime, platformName } from "@/lib/tr"
 
-export function PostCard(props: { draft: Draft; canPublish: boolean; onApprove: (now: boolean) => void; onReject: (reason: string) => void }) {
+export function PostCard(props: { draft: Draft; canPublish: boolean; onApprove: (now: boolean) => void; onShared: () => void; onReject: (reason: string) => void }) {
   const { draft, canPublish } = props
   const [rejecting, setRejecting] = useState(false)
+  const [copied, setCopied] = useState(false)
   const pending = draft.status === "pending"
+
+  async function copyPost() {
+    try {
+      await navigator.clipboard.writeText(draft.content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error("Kopyalanamadı. Gönderi metnini seçip elle kopyalayın.")
+    }
+  }
   const past = new Date(draft.scheduledAt).getTime() <= Date.now()
 
   return (
@@ -58,26 +71,38 @@ export function PostCard(props: { draft: Draft; canPublish: boolean; onApprove: 
             />
           ) : (
             <div className="flex flex-wrap gap-2">
-              <Button disabled={!canPublish || past} title={past ? "Planlanan zaman geçti" : undefined} onClick={() => props.onApprove(false)}>
-                Onayla ve zamanla
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" disabled={!canPublish}>
-                    Şimdi yayınla
+              {/* With a publishing service the post is approved here; without one it is copied and posted by hand. */}
+              {canPublish ? (
+                <>
+                  <Button disabled={!canPublish || past} title={past ? "Planlanan zaman geçti" : undefined} onClick={() => props.onApprove(false)}>
+                    Onayla ve zamanla
                   </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Bu gönderi şimdi yayınlansın mı?</AlertDialogTitle>
-                    <AlertDialogDescription>{platformName(draft.platform)} üzerinde hemen yayınlanır ve buradan geri alınamaz.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Taslak kalsın</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => props.onApprove(true)}>Şimdi yayınla</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" disabled={!canPublish}>
+                        Şimdi yayınla
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Bu gönderi şimdi yayınlansın mı?</AlertDialogTitle>
+                        <AlertDialogDescription>{platformName(draft.platform)} üzerinde hemen yayınlanır ve buradan geri alınamaz.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Taslak kalsın</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => props.onApprove(true)}>Şimdi yayınla</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              ) : null}
+              <Button variant={canPublish ? "outline" : "default"} onClick={copyPost}>
+                {copied ? <Check /> : <Copy />}
+                {copied ? "Kopyalandı" : "Metni kopyala"}
+              </Button>
+              <Button variant="outline" onClick={props.onShared}>
+                Paylaştım
+              </Button>
               <Button variant="ghost" onClick={() => setRejecting(true)}>
                 Reddet
               </Button>
