@@ -147,7 +147,7 @@ The founder reads ${brand.language}. Write the campaign definition, every post, 
 
 # When you finish
 
-Reply with a short note to the founder: the idea of the campaign in two or three sentences, how the weeks are laid out, and anything they need to prepare or decide before the first post. The note is shown as plain text, so write prose without Markdown: no headings, bullet lists or bold.`;
+Reply with a note to the founder of at most about 150 words. The plan, the schedule and the posts are already on the page next to it, so do not retell them. Say only what the page does not: first, in a sentence or two, the idea behind the order you chose; then what the founder must prepare, check or decide before the first post goes out, most urgent first, one short paragraph each. The note is shown as plain text, so write prose without Markdown: no headings, bullet lists or bold.`;
 }
 
 function buildCampaignTools(deps: CampaignDeps, input: CampaignInput, state: { campaign: Campaign | null }) {

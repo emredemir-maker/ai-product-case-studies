@@ -1,7 +1,10 @@
 import type { Campaign, Material } from "../../../src/campaign.ts"
-import type { Draft } from "../../../src/drafts.ts"
+import type { Draft as StoredDraft } from "../../../src/drafts.ts"
 import type { Recommendation } from "../../../src/recommendations.ts"
 import type { Run } from "../../../src/review.ts"
+
+/** A post as the server sends it: with whether its image's screenshot has been supplied. */
+type Draft = StoredDraft & { screenshotReady?: boolean }
 
 export type { Campaign, Draft, Material, Recommendation, Run }
 
@@ -12,6 +15,8 @@ export interface DeskState {
   canPublish: boolean
   canReview: boolean
   review: { running: boolean; error: string | null }
+  canIllustrate: boolean
+  illustrating: { running: boolean; error: string | null }
   canPlan: boolean
   planning: { running: boolean; error: string | null }
   campaigns: Campaign[]

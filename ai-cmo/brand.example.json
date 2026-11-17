@@ -12,5 +12,12 @@
     { "name": "Acme Funnels", "summary": "Funnel analysis that works on raw event data without a schema.", "url": "https://example.com/funnels" }
   ],
   "goals": ["Grow qualified demo requests from LinkedIn"],
-  "notes": "Never mention competitors by name."
+  "notes": "Never mention competitors by name.",
+  "visual": {
+    "background": "#101828",
+    "foreground": "#FFFFFF",
+    "muted": "#B4BDCC",
+    "accent": "#7CD4FD",
+    "footer": "example.com"
+  }
 }

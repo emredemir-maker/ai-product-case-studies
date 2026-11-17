@@ -14,6 +14,8 @@ import { RecommendationStore } from "./recommendations.ts";
 import { RunStore, loadWatch, runReview } from "./review.ts";
 import { SnapshotStore } from "./site.ts";
 import { createUiServer } from "./ui.ts";
+import { renderVisual, screenshotExists } from "./visual.ts";
+import { runVisuals } from "./visuals-run.ts";
 import { discoverSkills } from "./skills.ts";
 
 const USAGE = `Usage: cmo <command>
@@ -28,6 +30,8 @@ const USAGE = `Usage: cmo <command>
   campaign "<brief>" [--weeks <n>] [--start <YYYY-MM-DD>] [--materials <a.pdf,b.pdf>]
                             Plan a campaign; files come from the materials folder
   materials                 List the files a campaign can draw on
+  visuals                   Add images to waiting posts that have none
+  visual <id> [file.png]    Write a post's image to a file
   todo [status]             List recommendations (open | done | dismissed)
   prompt <id>               Print a recommendation's prompt for a coding agent
   ui [--every <hours>]      Open the local interface; optionally run a review on an interval
@@ -79,6 +83,13 @@ async function main() {
   const runs = new RunStore(config.runsFile);
   const campaigns = new CampaignStore(config.campaignsFile);
   const watchedOrigin = () => (fs.existsSync(config.watchFile) ? new URL(loadWatch(config.watchFile, config.reposDir).site.url).origin : null);
+  // The brand file is read on every call, so colour and logo changes show without a restart.
+  const renderDraftVisual = (draft: Draft) => {
+    const brand = loadBrand(config.brandFile);
+    return renderVisual({ visual: draft.visual!, style: brand.visual, brandName: brand.name, materialsDir: config.materialsDir });
+  };
+  const suggestVisuals = (onActivity?: (line: string) => void) =>
+    runVisuals({ config, brand: loadBrand(config.brandFile), skills: discoverSkills(config.skillsDir), drafts: store, postiz, onActivity });
   const planCampaign = (input: unknown, onActivity?: (line: string) => void) =>
     runCampaign(input, {
       config,
@@ -154,6 +165,20 @@ async function main() {
       console.log(`Rejected ${draft.id}.`);
       break;
     }
+    case "visuals": {
+      const result = await suggestVisuals((line) => console.error(`  · ${line}`));
+      console.log(result.draftIds.length ? `\n${result.summary}\n\n${result.draftIds.length} post(s) got an image. See: cmo ui` : "No waiting posts without an image.");
+      if (result.draftIds.length) console.log(`Cost: ${formatUsage(result.usage)}`);
+      break;
+    }
+    case "visual": {
+      const draft = store.get(requireArg(positional[0], "draft id"));
+      if (!draft.visual) throw new Error(`Draft ${draft.id} has no image. Run: cmo visuals`);
+      const file = positional[1] ?? `${draft.id}.png`;
+      fs.writeFileSync(file, await renderDraftVisual(draft));
+      console.log(`Wrote ${file}${screenshotExists(config.materialsDir, draft.visual) ? "" : ` (placeholder: put ${draft.visual.screenshot?.file} in ${config.materialsDir})`}`);
+      break;
+    }
     case "materials": {
       const list = listMaterials(config.materialsDir);
       console.log(list.length ? list.map((m) => `${m.name}  (${m.kind}, ${Math.max(1, Math.round(m.bytes / 1024))} KB)`).join("\n") : `No readable files in ${config.materialsDir}. Put PDF, image, .md or .txt files there.`);
@@ -216,6 +241,9 @@ async function main() {
         site: canReview ? new URL(loadWatch(config.watchFile, config.reposDir).site.url).origin : null,
         review: canReview ? () => review() : undefined,
         campaigns: fs.existsSync(config.brandFile) ? { store: campaigns, materialsDir: config.materialsDir, plan: (input) => planCampaign(input) } : undefined,
+        visuals: fs.existsSync(config.brandFile)
+          ? { render: renderDraftVisual, screenshotReady: (draft) => screenshotExists(config.materialsDir, draft.visual), suggest: () => suggestVisuals() }
+          : undefined,
         auth,
         publicUrl: config.publicUrl ?? undefined,
       });

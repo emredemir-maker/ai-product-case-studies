@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { z } from "zod";
+import { VisualStyleSchema } from "./visual.ts";
 
 export const BrandSchema = z.object({
   name: z.string().min(1),
@@ -16,6 +17,8 @@ export const BrandSchema = z.object({
     .default([]),
   goals: z.array(z.string()).default([]),
   notes: z.string().optional(),
+  /** Colours, logo and footer for the images shared with posts. */
+  visual: VisualStyleSchema.prefault({}),
 });
 
 export type Brand = z.infer<typeof BrandSchema>;

@@ -26,6 +26,20 @@ Write for the channel the post will be published on, not a generic "social" voic
 - **Threads / Bluesky**: conversational, under 300 characters, no hashtag blocks.
 - **Instagram**: the caption supports an image; say what the image cannot. Hashtags in a final block.
 
+## Image
+
+A post may carry one image, described in `visual` when you save the draft. The image is drawn from a fixed branded layout, so you supply words, not a design. Add one when it gives the reader something the first line alone does not; a post that is a plain reply or a short remark needs none.
+
+Pick the kind by what the post leads with:
+
+- **stat**: the post opens on a number. Put that number in `stat` exactly as the brand writes numbers, the claim it supports in `headline`, and its source and scope in `source`. If the number has no source you can state, do not make a stat image.
+- **statement**: the post turns on one sentence the reader should remember. That sentence, tightened, is the `headline`.
+- **screenshot**: the post announces or explains something a person can see in the product. The image shows the real screen under a short `headline`. You cannot take the screenshot; the person who builds the product has a coding agent that can. Write `screenshot.prompt` for that agent, and choose the `screenshot.file` name the result will be saved under.
+
+Keep the words on the image short: a headline of at most about ten words, one optional supporting line in `detail`. Do not repeat the post; the image is read first and the post second. No hashtags, links or calls to action on the image.
+
+**Writing the screenshot prompt.** The coding agent has the product's repository and can run the product, but knows nothing about this post. Tell it: which screen or page, and how to reach it; the state it should be in (which tab open, which row selected); that it must use demo or fictional data and never a real customer's (name the demo dataset if the brand notes or materials mention one); the viewport, 1600 by 1000 pixels at 2x scale, cropped to the part that matters; the file name, PNG, and that it should be saved for the founder to place in the materials folder. Say what must be visible for the screenshot to do its job, so the agent can check its own result.
+
 ## Rules
 
 - Every factual claim must come from the brand context or from research you did in this session. If you cannot support a claim, cut it.

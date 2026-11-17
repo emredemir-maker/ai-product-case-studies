@@ -8,6 +8,7 @@ import { DRAFT_STATUSES, type DraftStore } from "./drafts.ts";
 import type { PostizClient } from "./postiz.ts";
 import { type Usage, UsageMeter } from "./pricing.ts";
 import { type Skill, readSkill, renderSkillIndex } from "./skills.ts";
+import { VisualSchema } from "./visual.ts";
 
 export interface AgentDeps {
   config: Pick<Config, "model" | "effort" | "webSearch">;
@@ -145,6 +146,7 @@ export function buildTools(deps: AgentDeps, savedIds: string[] = [], campaign?: 
       rationale: z.string().min(1).describe("For the reviewer: why this post, on this channel, at this time"),
       settings: z.record(z.string(), z.unknown()).optional().describe("Provider-specific settings, following the schema from get_channel_rules"),
       attachment: z.string().optional().describe("File name of a material to attach when the post is shared, such as the catalog it announces. Only names from the campaign's materials list."),
+      visual: VisualSchema.optional().describe("The image to share with the post, when one helps. It is drawn from a fixed branded layout; see the social-post skill for when to use which kind."),
     }),
     run: async (input) => {
       if (new Date(input.scheduled_at).getTime() <= Date.now()) {
@@ -172,6 +174,7 @@ export function buildTools(deps: AgentDeps, savedIds: string[] = [], campaign?: 
         settings: input.settings,
         campaignId: campaign?.id() ?? undefined,
         attachment: input.attachment,
+        visual: input.visual,
       });
       savedIds.push(draft.id);
       return JSON.stringify({ id: draft.id, status: draft.status });

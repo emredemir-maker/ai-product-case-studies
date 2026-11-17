@@ -3,7 +3,7 @@ import http from "node:http";
 import path from "node:path";
 import type { Auth } from "./auth.ts";
 import { type Campaign, CampaignInputSchema, type CampaignStore, listMaterials } from "./campaign.ts";
-import type { DraftStore } from "./drafts.ts";
+import type { Draft, DraftStore } from "./drafts.ts";
 import type { PostizClient } from "./postiz.ts";
 import { approveDraft, markDraftShared, rejectDraft } from "./publish.ts";
 import type { RecommendationStore } from "./recommendations.ts";
@@ -20,6 +20,15 @@ export interface UiDeps {
   site: string | null;
   /** Starts a review. Absent when the review cannot run (no watch file). */
   review?: () => Promise<Run>;
+  /** Images for posts. Absent when they cannot be drawn (no brand file). */
+  visuals?: {
+    /** Renders a post's image as PNG. */
+    render: (draft: Draft) => Promise<Buffer>;
+    /** False while a screenshot the image needs has not been placed in the materials folder. */
+    screenshotReady: (draft: Draft) => boolean;
+    /** Has the agent add images to waiting posts that have none. */
+    suggest: () => Promise<unknown>;
+  };
   /** Campaign planning. Absent when it cannot run (no brand file). */
   campaigns?: {
     store: CampaignStore;
@@ -99,6 +108,23 @@ export function createUiServer(deps: UiDeps): http.Server {
       });
   };
 
+  const illustrating = { running: false, error: null as string | null };
+
+  const startVisuals = () => {
+    if (!deps.visuals) throw new HttpError(400, "Set up brand.json to add images.");
+    if (illustrating.running) return;
+    illustrating.running = true;
+    illustrating.error = null;
+    deps.visuals
+      .suggest()
+      .catch((error: unknown) => {
+        illustrating.error = error instanceof Error ? error.message : String(error);
+      })
+      .finally(() => {
+        illustrating.running = false;
+      });
+  };
+
   const planning = { running: false, error: null as string | null };
 
   const startCampaign = (body: Record<string, unknown>) => {
@@ -130,7 +156,12 @@ export function createUiServer(deps: UiDeps): http.Server {
     canReview: Boolean(deps.review),
     review,
     recommendations: deps.recommendations.list().reverse(),
-    drafts: deps.drafts.list().reverse(),
+    illustrating,
+    canIllustrate: Boolean(deps.visuals),
+    drafts: deps.drafts
+      .list()
+      .reverse()
+      .map((d) => (d.visual ? { ...d, screenshotReady: deps.visuals?.screenshotReady(d) ?? false } : d)),
     runs: deps.runs.list().slice(-10).reverse(),
   });
 
@@ -140,6 +171,10 @@ export function createUiServer(deps: UiDeps): http.Server {
 
     if (pathname === "/api/review") {
       startReview();
+      return state();
+    }
+    if (pathname === "/api/visuals") {
+      startVisuals();
       return state();
     }
     if (pathname === "/api/campaigns") {
@@ -216,6 +251,15 @@ export function createUiServer(deps: UiDeps): http.Server {
         }
         if (method === "POST" && pathname === "/api/logout") return send(200, { ok: true }, { "Set-Cookie": deps.auth.logoutCookie() });
         if (!deps.auth.isSignedIn(req.headers.cookie)) throw new HttpError(401, "Sign in required.");
+      }
+      // A post's image is the one API response that is not JSON.
+      const image = method === "GET" ? /^\/api\/drafts\/([0-9a-f]+)\/visual\.png$/.exec(pathname) : null;
+      if (image) {
+        const draft = deps.drafts.get(image[1]!);
+        if (!draft.visual || !deps.visuals) throw new HttpError(404, "This post has no image.");
+        const png = await deps.visuals.render(draft);
+        res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+        return void res.end(png);
       }
       send(200, await route(method, pathname, body));
     } catch (error) {

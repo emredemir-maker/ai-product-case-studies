@@ -89,6 +89,35 @@ npm run cmo -- campaign "Announce our six feature catalogs on the LinkedIn compa
 
 The agent reads every selected file, orders them by what the audience needs first, and writes a launch post and a follow-up for each. A post that announces a file names it as its attachment, so you know what to share with it. Anything the campaign needs on the site first (a download page, a tracked link) is added to the recommendations list. Posts appear under the campaign in sharing order, with the same copy, "Paylaştım" and reject controls as elsewhere.
 
+### Images for posts
+
+A post can carry one image, drawn from a fixed branded layout and rendered locally as a 1200 x 1200 PNG (no browser and no image model involved):
+
+| Kind | Shows | Used when |
+|---|---|---|
+| `stat` | One large number, the claim it supports, its source | The post opens on a number |
+| `statement` | One sentence | The post turns on a line worth remembering |
+| `screenshot` | A real screen of the product under a headline | The post announces something visible in the product |
+
+The agent chooses the kind and writes the words when it writes the post. For posts that already exist, "Görseli olmayan gönderilere görsel öner" in the interface (or `npm run cmo -- visuals`) adds images without touching the text.
+
+The layouts never draw the product. For a `screenshot` image the agent writes a request for the coding agent that builds your product (which screen, which state, demo data only, size, file name). Give that agent the request, put the resulting PNG in `materials/` under the name shown, and the image completes itself; until then it shows a placeholder. Preview and download are on each post; `npm run cmo -- visual <id> out.png` writes one from the terminal.
+
+Colours, logo and footer come from an optional `visual` section in `brand.json`:
+
+```json
+"visual": {
+  "background": "#101828",
+  "foreground": "#FFFFFF",
+  "muted": "#B4BDCC",
+  "accent": "#7CD4FD",
+  "logo": "logo.png",
+  "footer": "example.com"
+}
+```
+
+`logo` is a PNG in `materials/`; without one the brand name is written out. The typeface is Inter, bundled with the project.
+
 ### Posts
 
 ```bash

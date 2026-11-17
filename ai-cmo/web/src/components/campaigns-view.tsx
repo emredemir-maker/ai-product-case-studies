@@ -112,6 +112,9 @@ function CampaignCard(props: { campaign: Campaign; state: DeskState; run: (path:
   const tasks = state.recommendations.filter((r) => r.campaignId === campaign.id)
   const waiting = posts.filter((p) => p.status === "pending").length
   const archived = campaign.status === "archived"
+  const [noteOpen, setNoteOpen] = useState(false)
+  const noteParagraphs = campaign.summary.split(/\n{2,}/)
+  const longNote = noteParagraphs.length > 2
 
   return (
     <Card className={archived ? "gap-4 opacity-70" : "gap-4"}>
@@ -169,7 +172,12 @@ function CampaignCard(props: { campaign: Campaign; state: DeskState; run: (path:
           {campaign.summary && (
             <div>
               <h3 className="text-sm font-semibold text-muted-foreground">Planın notu</h3>
-              <p className="mt-1 max-w-[60em] whitespace-pre-wrap">{campaign.summary}</p>
+              <p className="mt-1 max-w-[60em] whitespace-pre-wrap">{noteOpen || !longNote ? campaign.summary : noteParagraphs.slice(0, 2).join("\n\n")}</p>
+              {longNote && (
+                <button type="button" onClick={() => setNoteOpen(!noteOpen)} aria-expanded={noteOpen} className="mt-2 rounded-sm text-sm font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+                  {noteOpen ? "Notu kısalt" : "Notun tamamını göster"}
+                </button>
+              )}
             </div>
           )}
 

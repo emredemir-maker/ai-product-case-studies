@@ -1,4 +1,4 @@
-import { FileClock, ListChecks, LogOut, type LucideIcon, Megaphone, RefreshCw, Send, Sparkles, Terminal } from "lucide-react"
+import { FileClock, ImagePlus, ListChecks, LogOut, type LucideIcon, Megaphone, RefreshCw, Send, Sparkles, Terminal } from "lucide-react"
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { LoginScreen } from "@/components/login-screen"
@@ -104,7 +104,7 @@ export default function App() {
 
   // While a check runs on the server, poll for its result.
   const checking = state?.review.running ?? false
-  const working = checking || (state?.planning.running ?? false)
+  const working = checking || (state?.planning.running ?? false) || (state?.illustrating.running ?? false)
   useEffect(() => {
     if (!working) return
     const timer = setInterval(() => !busyRef.current && void run("/api/state"), 4000)
@@ -352,6 +352,21 @@ export default function App() {
             ) : (
               <>
                 {!state.canPublish && <p className="text-sm text-muted-foreground">Metni kopyalayıp kendiniz paylaşın, ardından “Paylaştım” deyin; böylece aynı konu yeniden önerilmez.</p>}
+                {state.illustrating.error && (
+                  <Alert variant="destructive" className="bg-card">
+                    <AlertTitle>Görseller hazırlanamadı</AlertTitle>
+                    <AlertDescription>{state.illustrating.error}</AlertDescription>
+                  </Alert>
+                )}
+                {state.canIllustrate && state.drafts.some((d) => d.status === "pending" && !d.visual && d.platform !== "email") && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button variant="outline" className="bg-card" disabled={state.illustrating.running || busy} onClick={() => run("/api/visuals", {})}>
+                      <ImagePlus />
+                      {state.illustrating.running ? "Görseller hazırlanıyor…" : "Görseli olmayan gönderilere görsel öner"}
+                    </Button>
+                    <p className="text-sm text-muted-foreground">Gönderi metinleri değişmez; yalnız her birine uygun bir görsel eklenir.</p>
+                  </div>
+                )}
                 <div className="grid items-start gap-3 xl:grid-cols-2">
                   {state.drafts.map((draft) => (
                     <PostCard

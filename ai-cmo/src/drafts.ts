@@ -1,4 +1,5 @@
 import { JsonList, newId } from "./store.ts";
+import type { Visual } from "./visual.ts";
 
 /** `shared` means the person posted it by hand, outside Postiz. */
 export type DraftStatus = "pending" | "scheduled" | "shared" | "rejected";
@@ -27,9 +28,11 @@ export interface Draft {
   campaignId?: string;
   /** File in the materials folder to attach when sharing, e.g. a catalog. */
   attachment?: string;
+  /** The image to share with the post, rendered on demand from this description. */
+  visual?: Visual;
 }
 
-export type NewDraft = Pick<Draft, "platform" | "integrationId" | "content" | "scheduledAt" | "rationale" | "settings" | "campaignId" | "attachment">;
+export type NewDraft = Pick<Draft, "platform" | "integrationId" | "content" | "scheduledAt" | "rationale" | "settings" | "campaignId" | "attachment" | "visual">;
 
 /** The review queue of posts. */
 export class DraftStore {
