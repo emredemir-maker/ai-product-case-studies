@@ -2,7 +2,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import type { Auth } from "./auth.ts";
-import { type Campaign, CampaignInputSchema, type CampaignStore, listMaterials } from "./campaign.ts";
+import { type Campaign, CampaignInputSchema, type CampaignStore, deleteCampaign, listMaterials } from "./campaign.ts";
 import type { Draft, DraftStore } from "./drafts.ts";
 import type { PostizClient } from "./postiz.ts";
 import { approveDraft, markDraftShared, rejectDraft } from "./publish.ts";
@@ -183,6 +183,13 @@ export function createUiServer(deps: UiDeps): http.Server {
     }
     if (pathname === "/api/campaigns") {
       startCampaign(body);
+      return state();
+    }
+    const removal = /^\/api\/campaigns\/([0-9a-f]+)\/delete$/.exec(pathname);
+    if (removal && deps.campaigns) {
+      // Planning files posts under a campaign as it goes; deleting meanwhile could orphan them.
+      if (planning.running) throw new HttpError(409, "Wait until planning has finished.");
+      deleteCampaign({ campaigns: deps.campaigns.store, drafts: deps.drafts, recommendations: deps.recommendations }, removal[1]!);
       return state();
     }
     const campaign = /^\/api\/campaigns\/([0-9a-f]+)$/.exec(pathname);

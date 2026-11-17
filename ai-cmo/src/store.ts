@@ -17,6 +17,11 @@ export class JsonList<T> {
     fs.writeFileSync(tmp, JSON.stringify(items, null, 2));
     fs.renameSync(tmp, this.file);
   }
+
+  /** Rewrites the list through `change`, which returns the item to keep or null to drop it. */
+  rewrite(change: (item: T) => T | null): void {
+    this.write(this.read().flatMap((item) => change(item) ?? []));
+  }
 }
 
 export function newId(taken: { id: string }[]): string {

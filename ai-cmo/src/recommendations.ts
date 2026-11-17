@@ -52,6 +52,21 @@ export class RecommendationStore {
     return rec;
   }
 
+  /** Removes a deleted campaign's site tasks that were not done; finished ones stay, no longer tied to it. */
+  releaseCampaign(campaignId: string): number {
+    let removed = 0;
+    this.file.rewrite((rec) => {
+      if (rec.campaignId !== campaignId) return rec;
+      if (rec.status !== "done") {
+        removed++;
+        return null;
+      }
+      const { campaignId: _, ...kept } = rec;
+      return kept;
+    });
+    return removed;
+  }
+
   decide(id: string, status: RecommendationStatus, reason?: string): Recommendation {
     const all = this.file.read();
     const index = all.findIndex((r) => r.id === id);

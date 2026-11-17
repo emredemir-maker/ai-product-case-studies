@@ -2,6 +2,17 @@ import { Paperclip } from "lucide-react"
 import { type FormEvent, useState } from "react"
 import { PostCard } from "@/components/post-card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -111,6 +122,8 @@ function CampaignCard(props: { campaign: Campaign; state: DeskState; run: (path:
   const posts = state.drafts.filter((d) => d.campaignId === campaign.id).sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
   const tasks = state.recommendations.filter((r) => r.campaignId === campaign.id)
   const waiting = posts.filter((p) => p.status === "pending").length
+  const removable = posts.filter((p) => p.status === "pending" || p.status === "rejected").length
+  const undone = tasks.filter((t) => t.status !== "done").length
   const archived = campaign.status === "archived"
   const [noteOpen, setNoteOpen] = useState(false)
   const noteParagraphs = campaign.summary.split(/\n{2,}/)
@@ -135,6 +148,27 @@ function CampaignCard(props: { campaign: Campaign; state: DeskState; run: (path:
             <Button variant="ghost" size="sm" onClick={() => run(`/api/campaigns/${campaign.id}`, { status: archived ? "active" : "archived" })}>
               {archived ? "Geri al" : "Arşivle"}
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={state.planning.running}>
+                  Sil
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>“{campaign.name}” silinsin mi?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Kampanya planı{removable > 0 ? `, paylaşılmamış ${removable} gönderisi` : ""}
+                    {undone > 0 ? ` ve sitede yapılmamış ${undone} işi` : ""} silinir. Bu geri alınamaz.
+                    {posts.length - removable > 0 && ` Paylaştığınız ya da zamanladığınız ${posts.length - removable} gönderi Gönderiler bölümünde kalır.`}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => run(`/api/campaigns/${campaign.id}/delete`, {})}>Kampanyayı sil</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </CardHeader>

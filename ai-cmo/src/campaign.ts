@@ -4,6 +4,7 @@ import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { type AgentDeps, buildTools, runLoop } from "./agent.ts";
 import { type Brand, renderBrand } from "./brand.ts";
+import type { DraftStore } from "./drafts.ts";
 import type { Usage } from "./pricing.ts";
 import type { RecommendationStore } from "./recommendations.ts";
 import { buildSiteTools } from "./review.ts";
@@ -98,6 +99,20 @@ export class CampaignStore {
     this.file.write(all);
     return updated;
   }
+
+  remove(id: string): void {
+    if (!this.file.read().some((c) => c.id === id)) throw new Error(`No campaign with id ${id}`);
+    this.file.rewrite((c) => (c.id === id ? null : c));
+  }
+}
+
+/**
+ * Deletes a campaign with everything of it that was not acted on. Posts that were shared or
+ * scheduled and site tasks that were done are kept as a record.
+ */
+export function deleteCampaign(deps: { campaigns: CampaignStore; drafts: DraftStore; recommendations: RecommendationStore }, id: string) {
+  deps.campaigns.remove(id);
+  return { posts: deps.drafts.releaseCampaign(id), tasks: deps.recommendations.releaseCampaign(id) };
 }
 
 export const CampaignInputSchema = z.object({

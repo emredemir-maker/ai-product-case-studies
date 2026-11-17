@@ -72,6 +72,24 @@ export class DraftStore {
     return updated;
   }
 
+  /**
+   * Removes a deleted campaign's posts that nobody acted on (waiting or rejected). Posts that went
+   * out stay as a record, no longer tied to the campaign. Returns how many were removed.
+   */
+  releaseCampaign(campaignId: string): number {
+    let removed = 0;
+    this.file.rewrite((draft) => {
+      if (draft.campaignId !== campaignId) return draft;
+      if (draft.status === "pending" || draft.status === "rejected") {
+        removed++;
+        return null;
+      }
+      const { campaignId: _, ...kept } = draft;
+      return kept;
+    });
+    return removed;
+  }
+
   private read(): Draft[] {
     return this.file.read();
   }

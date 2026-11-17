@@ -213,5 +213,24 @@ test("the interface lists materials and campaigns, starts planning, and archives
   assert.equal((await post(`/api/campaigns/${existing.id}`, { status: "archived" })).status, 200);
   assert.equal(deps.campaigns.list()[0]!.status, "archived");
   assert.equal((await post(`/api/campaigns/${existing.id}`, { status: "deleted" })).status, 400);
+
+  // Deleting takes the campaign and what nobody acted on; what went out or was done stays, untied.
+  const mk = (content: string, campaignId: string) => deps.drafts.create({ platform: "linkedin", content, scheduledAt: "2026-12-08T09:00:00Z", rationale: "r", campaignId });
+  const waiting = mk("bekleyen", existing.id);
+  const shared = mk("paylaşılan", existing.id);
+  deps.drafts.update(shared.id, { status: "shared" });
+  const other = mk("başka kampanya", "ffffff");
+  const rec = (title: string) => deps.recommendations.create({ area: "content", priority: "low", title, why: "w", action: "a", evidence: [], campaignId: existing.id });
+  const open = rec("açık");
+  const done = rec("yapıldı");
+  deps.recommendations.decide(done.id, "done");
+
+  const after = await (await post(`/api/campaigns/${existing.id}/delete`, {})).json();
+  assert.deepEqual(after.campaigns, []);
+  assert.deepEqual(deps.drafts.list().map((d) => [d.id, d.campaignId]), [[shared.id, undefined], [other.id, "ffffff"]]);
+  assert.equal(deps.drafts.list().some((d) => d.id === waiting.id), false);
+  assert.deepEqual(deps.recommendations.list().map((r) => [r.id, r.campaignId]), [[done.id, undefined]]);
+  assert.equal(deps.recommendations.list().some((r) => r.id === open.id), false);
+  assert.notEqual((await post(`/api/campaigns/${existing.id}/delete`, {})).status, 200, "already gone");
   await new Promise((resolve) => server.close(resolve));
 });
