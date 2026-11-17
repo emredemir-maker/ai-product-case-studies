@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "cmo": "tsx src/cli.ts",
+    "cmo": "node --import tsx src/cli.ts",
     "typecheck": "tsc --noEmit && npm --prefix web run typecheck",
     "test": "tsx --test --test-timeout=30000 --test-force-exit test/*.test.ts",
     "skills:install": "git clone --depth 1 https://github.com/coreyhaines31/marketingskills skills/vendor/marketingskills || git -C skills/vendor/marketingskills pull --ff-only",

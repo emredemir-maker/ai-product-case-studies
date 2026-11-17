@@ -172,6 +172,14 @@ async function main() {
         auth,
         publicUrl: config.publicUrl ?? undefined,
       });
+      // Stop cleanly on Ctrl+C (and Ctrl+Break on Windows) instead of relying on the default handling,
+      // which does not always reach the process when it is started through a wrapper such as npx.
+      for (const signal of ["SIGINT", "SIGTERM", "SIGBREAK"] as const) {
+        process.on(signal, () => {
+          console.log("\nStopping.");
+          process.exit(0);
+        });
+      }
       server.listen(config.uiPort, config.uiHost, () => console.log(`Growth desk: ${config.publicUrl ?? `http://localhost:${config.uiPort}`}`));
       if (flags.every !== undefined) {
         const hours = Number(flags.every);
