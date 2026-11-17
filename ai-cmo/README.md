@@ -5,7 +5,7 @@ A self-hosted marketing agent for a product you build and change often. It does 
 1. **Watches your site and your commits**, and on a schedule tells you what to do next for search (SEO), AI answer engines (GEO) and product-led growth (PLG).
 2. **Plans and writes social posts**, from a brief or from a feature it saw you ship, and puts them in a review queue. A person approves each post before it is sent to [Postiz](https://github.com/gitroomhq/postiz-app) for publishing.
 
-Both land in one local interface, the growth desk.
+Both land in one local interface, the growth desk. The interface is in Turkish; the agent writes recommendations and posts in the language set in `brand.json`.
 
 ![Growth desk](docs/growth-desk.png)
 
@@ -125,7 +125,7 @@ Approving and rejecting also work from the interface.
 
 ## Working on the interface
 
-`web/` is its own package. The components in `web/src/components/ui` are shadcn/ui sources (MIT) copied into the project, so they are yours to edit; `web/components.json` is set up for `npx shadcn@latest add <component>`. The theme lives in `web/src/index.css`.
+`web/` is its own package. Interface text lives in `web/src/lib/tr.ts` and in the components. The components in `web/src/components/ui` are shadcn/ui sources (MIT) copied into the project, so they are yours to edit; `web/components.json` is set up for `npx shadcn@latest add <component>`. The theme lives in `web/src/index.css`.
 
 ```bash
 npm run cmo -- ui                    # the API on :4321

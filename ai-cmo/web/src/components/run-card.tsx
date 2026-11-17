@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { type Run, dayTime } from "@/lib/api"
+import type { Run } from "@/lib/api"
+import { bandName, dayTime, diffField } from "@/lib/tr"
 
 function Section({ label, items }: { label: string; items: ReactNode[] }) {
   return (
@@ -21,33 +22,34 @@ export function RunCard({ run }: { run: Run }) {
   return (
     <Card className="gap-4">
       <CardHeader>
-        <CardTitle>{dayTime(run.at)}</CardTitle>
+        <CardTitle className="font-display text-lg">{dayTime(run.at)}</CardTitle>
         <CardDescription>
-          {run.pagesChecked} pages checked, {run.recommendationIds.length} recommendations, {run.draftIds.length} posts
+          {run.pagesChecked} sayfa incelendi, {run.recommendationIds.length} öneri, {run.draftIds.length} gönderi
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <p className="max-w-[46em] whitespace-pre-wrap">{run.summary}</p>
         {run.commits.length > 0 && (
           <Section
-            label="Product changes"
+            label="Üründeki değişiklikler"
             items={run.commits.map((c) => (
               <>
-                <code className="font-mono">{c.hash}</code> {c.subject} ({c.repo})
+                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{c.hash}</code> {c.subject} ({c.repo})
               </>
             ))}
           />
         )}
-        {run.diff.added.length > 0 && <Section label="New pages" items={run.diff.added} />}
-        {run.diff.removed.length > 0 && <Section label="Removed pages" items={run.diff.removed} />}
-        {run.diff.changed.length > 0 && <Section label="Changed pages" items={run.diff.changed.map((c) => `${c.url}: ${c.fields.join(", ")}`)} />}
+        {run.diff.added.length > 0 && <Section label="Yeni sayfalar" items={run.diff.added} />}
+        {run.diff.removed.length > 0 && <Section label="Kaldırılan sayfalar" items={run.diff.removed} />}
+        {run.diff.changed.length > 0 && <Section label="Değişen sayfalar" items={run.diff.changed.map((c) => `${c.url}: ${c.fields.map(diffField).join(", ")}`)} />}
         {(run.sources ?? []).map((s) =>
           s.ok ? (
-            <Section key={s.name} label={`${s.name}${s.score != null ? `: ${s.score}/100${s.band ? `, ${s.band}` : ""}` : ""}`} items={(s.recommendations ?? []).slice(0, 12)} />
+            <Section key={s.name} label={`${s.name}${s.score != null ? `: ${s.score}/100${s.band ? `, ${bandName(s.band)}` : ""}` : ""}`} items={(s.recommendations ?? []).slice(0, 12)} />
           ) : (
-            <Section key={s.name} label={`${s.name} did not run`} items={[s.error]} />
+            <Section key={s.name} label={`${s.name} çalışmadı`} items={[s.error]} />
           ),
         )}
-        {run.problems.length > 0 && <Section label="Problems" items={run.problems} />}
+        {run.problems.length > 0 && <Section label="Sorunlar" items={run.problems} />}
       </CardContent>
     </Card>
   )

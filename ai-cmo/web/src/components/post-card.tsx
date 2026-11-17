@@ -14,7 +14,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
-import { type Draft, capitalize, dayTime, platformName } from "@/lib/api"
+import type { Draft } from "@/lib/api"
+import { DRAFT_STATUS, dayTime, platformName } from "@/lib/tr"
 
 export function PostCard(props: { draft: Draft; canPublish: boolean; onApprove: (now: boolean) => void; onReject: (reason: string) => void }) {
   const { draft, canPublish } = props
@@ -28,12 +29,12 @@ export function PostCard(props: { draft: Draft; canPublish: boolean; onApprove: 
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <Badge variant="secondary">{platformName(draft.platform)}</Badge>
           <span>
-            {pending ? "Planned for " : ""}
+            {pending ? "Planlanan: " : ""}
             {dayTime(draft.scheduledAt)}
           </span>
           {!pending && (
-            <span className="font-medium">
-              {capitalize(draft.status)}
+            <span className="font-medium text-foreground">
+              {DRAFT_STATUS[draft.status]}
               {draft.rejectionReason ? `: ${draft.rejectionReason}` : ""}
             </span>
           )}
@@ -41,14 +42,14 @@ export function PostCard(props: { draft: Draft; canPublish: boolean; onApprove: 
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="max-w-[40em] break-words whitespace-pre-wrap">{draft.content}</p>
-        <p className="text-sm text-muted-foreground">Why this post: {draft.rationale}</p>
+        <p className="text-sm text-muted-foreground">Neden bu gönderi: {draft.rationale}</p>
       </CardContent>
       {pending && (
         <CardFooter className="block">
           {rejecting ? (
             <ReasonForm
-              placeholder="What should change? The next run reads this"
-              submitLabel="Reject"
+              placeholder="Ne değişmeli? Sonraki çalıştırma bunu okur"
+              submitLabel="Reddet"
               onSubmit={(reason) => {
                 setRejecting(false)
                 props.onReject(reason)
@@ -57,28 +58,28 @@ export function PostCard(props: { draft: Draft; canPublish: boolean; onApprove: 
             />
           ) : (
             <div className="flex flex-wrap gap-2">
-              <Button disabled={!canPublish || past} title={past ? "The planned time has passed" : undefined} onClick={() => props.onApprove(false)}>
-                Approve and schedule
+              <Button disabled={!canPublish || past} title={past ? "Planlanan zaman geçti" : undefined} onClick={() => props.onApprove(false)}>
+                Onayla ve zamanla
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" disabled={!canPublish}>
-                    Publish now
+                    Şimdi yayınla
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Publish this post now?</AlertDialogTitle>
-                    <AlertDialogDescription>It goes out on {platformName(draft.platform)} immediately and cannot be recalled from here.</AlertDialogDescription>
+                    <AlertDialogTitle>Bu gönderi şimdi yayınlansın mı?</AlertDialogTitle>
+                    <AlertDialogDescription>{platformName(draft.platform)} üzerinde hemen yayınlanır ve buradan geri alınamaz.</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Keep as draft</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => props.onApprove(true)}>Publish now</AlertDialogAction>
+                    <AlertDialogCancel>Taslak kalsın</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => props.onApprove(true)}>Şimdi yayınla</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
               <Button variant="ghost" onClick={() => setRejecting(true)}>
-                Reject
+                Reddet
               </Button>
             </div>
           )}

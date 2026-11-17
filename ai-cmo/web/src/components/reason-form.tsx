@@ -18,7 +18,7 @@ export function ReasonForm(props: { placeholder: string; submitLabel: string; on
         {props.submitLabel}
       </Button>
       <Button type="button" variant="ghost" onClick={props.onCancel}>
-        Cancel
+        Vazgeç
       </Button>
     </form>
   )
