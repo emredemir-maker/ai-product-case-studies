@@ -155,6 +155,7 @@ async function main() {
     case "ui": {
       const canReview = fs.existsSync(config.watchFile);
       const server = createUiServer({
+        staticDir: path.join(config.root, "web", "dist"),
         drafts: store,
         recommendations,
         runs,

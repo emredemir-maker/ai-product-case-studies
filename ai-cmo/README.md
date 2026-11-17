@@ -34,6 +34,7 @@ npm install
 cp .env.example .env                 # add ANTHROPIC_API_KEY; POSTIZ_API_KEY is optional
 cp brand.example.json brand.json     # describe your brand, audience and voice
 cp watch.example.json watch.json     # your site URL and the local paths of your app repos
+npm run build:ui                     # build the interface (once, and after changing web/)
 npm run skills:install               # optional: more marketing skills
 ```
 
@@ -113,13 +114,23 @@ Approving and rejecting also work from the interface.
 | `src/site.ts` | Page snapshot and diff, for change tracking |
 | `src/repo.ts` | Recent commits from a local git clone |
 | `src/recommendations.ts` | Recommendation list (JSON file) |
-| `src/ui.ts`, `src/ui.html` | The local interface |
+| `src/ui.ts` | Local server: the JSON API and the built interface |
+| `web/` | The interface: React, Vite, Tailwind and [shadcn/ui](https://ui.shadcn.com) components (`web/src/components/ui`) |
 | `src/publish.ts` | Approve and reject: the only path from a draft to Postiz |
 | `src/postiz.ts` | Postiz public API client |
 | `src/drafts.ts` | Review queue (JSON file) |
 | `src/skills.ts`, `skills/` | Skill discovery and the included playbooks |
 | `src/brand.ts` | Brand file schema |
 | `src/cli.ts` | Command line |
+
+## Working on the interface
+
+`web/` is its own package. The components in `web/src/components/ui` are shadcn/ui sources (MIT) copied into the project, so they are yours to edit; `web/components.json` is set up for `npx shadcn@latest add <component>`. The theme lives in `web/src/index.css`.
+
+```bash
+npm run cmo -- ui                    # the API on :4321
+npm --prefix web run dev             # the interface with hot reload, proxying /api to :4321
+```
 
 ## Tests
 

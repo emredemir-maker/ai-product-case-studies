@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { test } from "node:test";
@@ -115,7 +116,14 @@ test("the interface serves state, applies decisions, and refuses writes from oth
   const rec = recommendations.create({ area: "geo", priority: "medium", title: "Add llms.txt", why: "w", action: "a", evidence: [] });
   const draft = drafts.create({ platform: "x", content: "Hi", scheduledAt: future(), rationale: "r" });
   let reviews = 0;
+  const staticDir = path.join(dir, "dist");
+  fs.mkdirSync(path.join(staticDir, "assets"), { recursive: true });
+  fs.writeFileSync(path.join(staticDir, "index.html"), "<title>Growth desk</title>");
+  fs.writeFileSync(path.join(staticDir, "assets", "app-abc123.js"), "console.log(1)");
+  fs.writeFileSync(path.join(dir, "secret.json"), "{}");
+  assert.throws(() => createUiServer({ staticDir: path.join(dir, "missing") } as never), /not built.*npm run build:ui/s);
   const server = createUiServer({
+    staticDir,
     drafts,
     recommendations,
     runs: new RunStore(path.join(dir, "runs.json")),
@@ -133,7 +141,16 @@ test("the interface serves state, applies decisions, and refuses writes from oth
 
   const html = await fetch(base + "/");
   assert.match(html.headers.get("content-type")!, /text\/html/);
+  assert.equal(html.headers.get("cache-control"), "no-store");
   assert.match(await html.text(), /<title>Growth desk<\/title>/);
+  const asset = await fetch(base + "/assets/app-abc123.js");
+  assert.match(asset.headers.get("content-type")!, /text\/javascript/);
+  assert.match(asset.headers.get("cache-control")!, /immutable/);
+  assert.equal(await asset.text(), "console.log(1)");
+  // Only files inside the built folder are served.
+  for (const escape of ["/%2e%2e/secret.json", "/..%2fsecret.json", "/assets/../../secret.json", "/assets/missing.js", "/assets"]) {
+    assert.equal((await fetch(base + escape)).status, 404, escape);
+  }
 
   const state = await (await fetch(base + "/api/state")).json();
   assert.equal(state.canPublish, false);
