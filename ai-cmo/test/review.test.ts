@@ -100,6 +100,8 @@ test("a review crawls the site, lets the agent read a page, and records recommen
   assert.equal(first!.body.stream, true);
   assert.equal(first!.body.max_tokens, 64000);
   assert.equal(run.complete, true);
+  // Two responses, each reporting 1 input and 1 output token on Opus 5.5.
+  assert.deepEqual(run.usage, { inputTokens: 2, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, webSearches: 0, models: ["claude-opus-5-5"], costUsd: 0 });
   const saveTool = first!.body.tools.find((t: { name: string }) => t.name === "save_recommendation");
   assert.ok("agent_prompt" in saveTool.input_schema.properties);
   assert.equal(saveTool.input_schema.required.includes("agent_prompt"), false);

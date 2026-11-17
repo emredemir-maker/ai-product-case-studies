@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Run } from "@/lib/api"
-import { bandName, dayTime, diffField } from "@/lib/tr"
+import { bandName, dayTime, diffField, tokens, usd } from "@/lib/tr"
 
 function Section({ label, items }: { label: string; items: ReactNode[] }) {
   return (
@@ -51,6 +51,17 @@ export function RunCard({ run }: { run: Run }) {
           ),
         )}
         {run.problems.length > 0 && <Section label="Sorunlar" items={run.problems} />}
+        {run.usage && (
+          <div>
+            <p className="text-sm font-semibold text-muted-foreground">
+              Tahmini maliyet: {run.usage.costUsd === null ? "bilinmiyor (bu modelin fiyatı tanımlı değil)" : usd(run.usage.costUsd)}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {tokens(run.usage.inputTokens)} giriş, {tokens(run.usage.cacheWriteTokens)} önbelleğe yazma, {tokens(run.usage.cacheReadTokens)} önbellekten okuma, {tokens(run.usage.outputTokens)} çıkış token'ı.
+              {run.usage.webSearches > 0 && ` ${run.usage.webSearches} web araması ücreti dahil değil.`} Model: {run.usage.models.join(", ")}.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

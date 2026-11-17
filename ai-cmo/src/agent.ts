@@ -6,6 +6,7 @@ import { type Brand, renderBrand } from "./brand.ts";
 import type { Config } from "./config.ts";
 import { DRAFT_STATUSES, type DraftStore } from "./drafts.ts";
 import type { PostizClient } from "./postiz.ts";
+import { type Usage, UsageMeter } from "./pricing.ts";
 import { type Skill, readSkill, renderSkillIndex } from "./skills.ts";
 
 export interface AgentDeps {
@@ -22,6 +23,7 @@ export interface AgentDeps {
 export interface AgentResult {
   text: string;
   stopReason: string | null;
+  usage: Usage;
   draftIds: string[];
 }
 
@@ -203,9 +205,11 @@ export async function runLoop(deps: Pick<AgentDeps, "config" | "client" | "onAct
   });
 
   let last: Anthropic.Beta.BetaMessage | undefined;
+  const meter = new UsageMeter();
   for await (const stream of runner) {
     const message = await stream.finalMessage();
     last = message;
+    meter.add(message.model, message.usage);
     // A turn cut off at the length limit may end in a half-written tool call; the runner does not
     // execute any of that turn's calls, so do not report them as done.
     if (message.stop_reason === "max_tokens") break;
@@ -222,7 +226,7 @@ export async function runLoop(deps: Pick<AgentDeps, "config" | "client" | "onAct
     .map((b) => b.text)
     .join("\n")
     .trim();
-  return { text, stopReason: last.stop_reason };
+  return { text, stopReason: last.stop_reason, usage: meter.total() };
 }
 
 /** Runs the agent on one brief. Drafts are written to the store as it works. */

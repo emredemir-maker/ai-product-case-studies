@@ -14,7 +14,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Toaster } from "@/components/ui/sonner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { type DeskState, type Recommendation, SignInRequired, call } from "@/lib/api"
-import { AREA, PRIORITY, REC_STATUS, ago, day } from "@/lib/tr"
+import { AREA, PRIORITY, REC_STATUS, ago, day, usd } from "@/lib/tr"
 import { useMedia } from "@/lib/use-media"
 import { cn } from "@/lib/utils"
 
@@ -128,6 +128,9 @@ export default function App() {
   // Runs arrive newest first; the trend reads oldest to newest.
   const scores = state.runs.flatMap((r) => r.sources?.find((s) => s.ok && s.score != null)?.score ?? []).reverse()
   const band = last?.sources?.find((s) => s.ok && s.score != null)?.band
+  // The server sends its last ten reviews, which covers a month at any sensible interval.
+  const monthAgo = Date.now() - 30 * 86_400_000
+  const spend30 = state.runs.filter((r) => new Date(r.at).getTime() >= monthAgo).reduce((sum, r) => sum + (r.usage?.costUsd ?? 0), 0)
   const openRecs = state.recommendations.filter((r) => r.status === "open")
   const pendingCount = state.drafts.filter((d) => d.status === "pending").length
   const visible = state.recommendations.filter((r) => (showClosed || r.status === "open") && (area === "all" || r.area === area))
@@ -229,7 +232,11 @@ export default function App() {
           </Stat>
           <Stat label="Son kontrol">
             <p className="font-display text-2xl leading-tight font-bold">{last ? ago(last.at) : "Yapılmadı"}</p>
-            <p className="text-sm text-muted-foreground">{last ? `${last.pagesChecked} sayfa, ${last.commits.length} commit incelendi` : "İlk kontrol tüm siteyi yeni sayar"}</p>
+            <p className="text-sm text-muted-foreground">
+              {last ? `${last.pagesChecked} sayfa, ${last.commits.length} commit incelendi` : "İlk kontrol tüm siteyi yeni sayar"}
+              {last?.usage?.costUsd != null && <span className="block">Tahmini maliyet {usd(last.usage.costUsd)}</span>}
+              {spend30 > 0 && <span className="block">Son 30 gün {usd(spend30)}</span>}
+            </p>
           </Stat>
         </section>
 

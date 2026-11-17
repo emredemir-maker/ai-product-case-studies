@@ -159,6 +159,12 @@ To update: `git pull && docker compose up -d --build`.
 | `src/brand.ts` | Brand file schema |
 | `src/cli.ts` | Command line |
 
+## Cost
+
+Each review and each `plan` run records the tokens it used and an estimated cost; the interface shows the last review's cost, the 30-day total and a per-review breakdown under "Geçmiş", and the CLI prints a `Cost:` line. The estimate multiplies token counts by the list prices in `src/pricing.ts`, so update that table when prices or models change. It does not include web-search fees; the invoice in the Anthropic console is the figure that counts.
+
+To spend less: run reviews less often (`--every`), lower `maxPages`, or set `CMO_MODEL=claude-sonnet-5-5` or `CMO_EFFORT=medium`.
+
 ## Working on the interface
 
 `web/` is its own package. Interface text lives in `web/src/lib/tr.ts` and in the components. The components in `web/src/components/ui` are shadcn/ui sources (MIT) copied into the project, so they are yours to edit; `web/components.json` is set up for `npx shadcn@latest add <component>`. The theme lives in `web/src/index.css`.

@@ -40,6 +40,11 @@ export const platformName = (id: string) => PLATFORM[id] ?? id.charAt(0).toLocal
 export const day = (iso: string) => new Date(iso).toLocaleDateString("tr-TR", { day: "numeric", month: "short" })
 export const dayTime = (iso: string) => new Date(iso).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
 
+/** Dollar amounts the Turkish way: "0,84 $". Small costs keep a third digit so they do not read as zero. */
+export const usd = (amount: number) => `${amount.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: amount < 0.1 ? 3 : 2 })} $`
+
+export const tokens = (n: number) => (n >= 1000 ? `${Math.round(n / 1000).toLocaleString("tr-TR")} bin` : String(n))
+
 export function ago(iso: string) {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
   if (mins < 1) return "az önce"

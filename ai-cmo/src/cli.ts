@@ -7,6 +7,7 @@ import { Auth } from "./auth.ts";
 import { loadConfig } from "./config.ts";
 import { DRAFT_STATUSES, type Draft, DraftStore, type DraftStatus } from "./drafts.ts";
 import { PostizClient, PostizError } from "./postiz.ts";
+import { formatUsage } from "./pricing.ts";
 import { approveDraft, rejectDraft } from "./publish.ts";
 import { RecommendationStore } from "./recommendations.ts";
 import { RunStore, loadWatch, runReview } from "./review.ts";
@@ -107,6 +108,7 @@ async function main() {
         console.error(`Warning: the run stopped early (${result.stopReason}); the plan may be incomplete.`);
       }
       console.log(`${result.draftIds.length} draft(s) saved. Review with: cmo drafts pending`);
+      console.log(`Cost: ${formatUsage(result.usage)}`);
       break;
     }
     case "drafts": {
@@ -138,6 +140,7 @@ async function main() {
       console.log(`\n${run.summary}\n`);
       for (const problem of run.problems) console.error(`Warning: ${problem}`);
       console.log(`${run.pagesChecked} pages checked, ${run.recommendationIds.length} recommendation(s), ${run.draftIds.length} post(s). See: cmo todo, or cmo ui`);
+      if (run.usage) console.log(`Cost: ${formatUsage(run.usage)}`);
       break;
     }
     case "todo": {

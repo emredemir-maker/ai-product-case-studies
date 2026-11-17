@@ -6,6 +6,7 @@ import { z } from "zod";
 import { type AgentDeps, buildTools, runLoop } from "./agent.ts";
 import { type Brand, renderBrand } from "./brand.ts";
 import { AREAS, PRIORITIES, type RecommendationStore } from "./recommendations.ts";
+import type { Usage } from "./pricing.ts";
 import { type Commit, recentCommits, syncRepo } from "./repo.ts";
 import { type SiteDiff, type SiteSnapshot, type SnapshotStore, crawlSite, diffSites } from "./site.ts";
 import { type SourceResult, SourceSchema, runSource } from "./sources.ts";
@@ -55,6 +56,8 @@ export interface Run {
   summary: string;
   recommendationIds: string[];
   draftIds: string[];
+  /** Tokens used and the estimated cost. Absent on reviews recorded before this was tracked. */
+  usage?: Usage;
   /** False when the agent was cut off. Such a review does not become the baseline for the next one. */
   complete: boolean;
 }
@@ -285,6 +288,7 @@ export async function runReview(deps: ReviewDeps): Promise<Run> {
     summary: result.text,
     recommendationIds,
     draftIds,
+    usage: result.usage,
     complete,
   };
   // The snapshot becomes the new baseline only when the review ran to the end, so a failed or
