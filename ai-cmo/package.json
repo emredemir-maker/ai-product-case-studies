@@ -1,0 +1,31 @@
+{
+  "name": "ai-cmo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted AI CMO: a Claude agent that plans and drafts marketing content, with human approval before anything is published through Postiz.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "cmo": "node --import tsx src/cli.ts",
+    "typecheck": "tsc --noEmit && npm --prefix web run typecheck",
+    "test": "tsx --test --test-timeout=30000 --test-force-exit test/*.test.ts",
+    "skills:install": "git clone --depth 1 https://github.com/coreyhaines31/marketingskills skills/vendor/marketingskills || git -C skills/vendor/marketingskills pull --ff-only",
+    "build:ui": "npm --prefix web install && npm --prefix web run build"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.9.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/outfit": "^5.3.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "node-html-parser": "^9.0.7",
+    "satori": "^0.63.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

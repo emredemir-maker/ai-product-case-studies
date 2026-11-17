@@ -1,0 +1,124 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* shadcn/ui theme tokens, set to this project's palette. */
+:root {
+  --radius: 0.625rem;
+  --background: #f4f3fa;
+  --foreground: #17152b;
+  --card: #ffffff;
+  --card-foreground: #17152b;
+  --popover: #ffffff;
+  --popover-foreground: #17152b;
+  --primary: #5b3df5;
+  --primary-foreground: #ffffff;
+  --secondary: #ebe9f6;
+  --secondary-foreground: #17152b;
+  --muted: #ebe9f6;
+  --muted-foreground: #625f7a;
+  --accent: #ebe9f6;
+  --accent-foreground: #17152b;
+  --destructive: #d92d4b;
+  --border: #dfdcee;
+  --input: #cfcbe3;
+  --ring: #5b3df5;
+  /* The dark surfaces: side rail, score tile and prompt box. They stay dark in both themes. */
+  --ink: #17152f;
+  --ink-foreground: #eeecfb;
+  --ink-muted: #a9a5c9;
+  --ink-raised: #2a2752;
+  --signal: #d7f25c;
+  --priority-high: #d92d4b;
+  --priority-medium: #c77a06;
+  --priority-low: #7c7996;
+  --success: #0e8f62;
+  --area-seo: #2463eb;
+  --area-geo: #7c3aed;
+  --area-plg: #0e8f62;
+  --area-content: #c2570c;
+}
+
+.dark {
+  --background: #0f0e1c;
+  --foreground: #eceafa;
+  --card: #1a1830;
+  --card-foreground: #eceafa;
+  --popover: #1a1830;
+  --popover-foreground: #eceafa;
+  --primary: #9a88ff;
+  --primary-foreground: #12102a;
+  --secondary: #25223f;
+  --secondary-foreground: #eceafa;
+  --muted: #25223f;
+  --muted-foreground: #a5a1c2;
+  --accent: #25223f;
+  --accent-foreground: #eceafa;
+  --destructive: #ff7088;
+  --border: #2d2a4a;
+  --input: #3a3660;
+  --ring: #9a88ff;
+  --ink: #0a0915;
+  --ink-foreground: #eeecfb;
+  --ink-muted: #9c98bd;
+  --ink-raised: #1f1c3a;
+  --signal: #d7f25c;
+  --priority-high: #ff7088;
+  --priority-medium: #f2b340;
+  --priority-low: #9390ad;
+  --success: #4fd6a2;
+  --area-seo: #7aa7ff;
+  --area-geo: #b79bff;
+  --area-plg: #4fd6a2;
+  --area-content: #f5a15c;
+}
+
+@theme inline {
+  --font-sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-raised: var(--ink-raised);
+  --color-signal: var(--signal);
+  --color-area-seo: var(--area-seo);
+  --color-area-geo: var(--area-geo);
+  --color-area-plg: var(--area-plg);
+  --color-area-content: var(--area-content);
+  --color-priority-high: var(--priority-high);
+  --color-priority-medium: var(--priority-medium);
+  --color-priority-low: var(--priority-low);
+  --color-success: var(--success);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}

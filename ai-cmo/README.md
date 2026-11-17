@@ -1,0 +1,239 @@
+# AI CMO
+
+A self-hosted marketing agent for a product you build and change often. It does two jobs:
+
+1. **Watches your site and your commits**, and on a schedule tells you what to do next for search (SEO), AI answer engines (GEO) and product-led growth (PLG).
+2. **Plans and writes social posts**, from a brief or from a feature it saw you ship, and puts them in a review queue. A person approves each post before it is sent to [Postiz](https://github.com/gitroomhq/postiz-app) for publishing.
+
+Both land in one local interface, the growth desk. The interface is in Turkish; the agent writes recommendations and posts in the language set in `brand.json`.
+
+![Growth desk](docs/growth-desk.png)
+
+```
+your site ──audit tools──┐
+your site ──page diff────┼──> Claude agent ──> recommendations ──> you: done / dismiss (with a reason)
+your repos ──git log─────┘         │      (each with a prompt for your coding agent)
+                                   └────────> post drafts ──────> you: approve ──> Postiz ──> channels
+```
+
+## Design
+
+- **The agent cannot publish.** Its tools read channels, load skills and save drafts. Sending a post to Postiz happens only in `cmo approve`, which a person runs.
+- **One agent, many skills.** Channel and task expertise lives in `SKILL.md` playbooks the agent loads on demand, not in separate agents. Two are included; `npm run skills:install` adds the MIT-licensed [marketingskills](https://github.com/coreyhaines31/marketingskills) set (copywriting, SEO, CRO, email, ads and more).
+- **Postiz stays a separate service.** This project talks to its public HTTP API only. Postiz is AGPL-3.0; none of its code is included or linked here.
+- **Rejections are feedback.** Rejecting a post or dismissing a recommendation stores your reason, and the agent reads it before its next run.
+- **Existing tools measure, the agent judges.** SEO and GEO rules are not implemented here. Each check runs external audit tools and gives their reports to the agent, which decides what matters for this product, reads pages where it needs to, and writes the fix. What this project adds is the part those tools lack: tying site changes to your commits, the PLG view, one prioritized list, and a prompt per item.
+- **Single-user.** By default the interface listens on `127.0.0.1` only and accepts writes only from its own page. On a server it sits behind a password and one fixed address (see "Running on a server").
+
+## Setup
+
+Requires Node 20+.
+
+```bash
+npm install
+cp .env.example .env                 # add ANTHROPIC_API_KEY; POSTIZ_API_KEY is optional
+cp brand.example.json brand.json     # describe your brand, audience and voice
+cp watch.example.json watch.json     # your site URL and the local paths of your app repos
+npm run build:ui                     # build the interface (once, and after changing web/)
+npm run skills:install               # optional: more marketing skills
+```
+
+Without a Postiz key the agent still plans and drafts by platform name; you need the key to list channels and to approve.
+
+## Use
+
+### Watch the site and the product
+
+```bash
+npm run cmo -- ui --every 24         # open http://localhost:4321 and check once a day
+npm run cmo -- review                # or run one check now from the terminal
+npm run cmo -- todo                  # list open recommendations
+npm run cmo -- prompt a1b2c3         # print a recommendation's prompt for a coding agent
+```
+
+`watch.json` names the site, the git clones to read commits from, and the audit tools to run:
+
+```json
+{
+  "site": { "url": "https://example.com", "maxPages": 30 },
+  "repos": [{ "name": "app", "path": "../my-app" }],
+  "sources": [
+    { "type": "geo-optimizer", "maxPages": 10 },
+    { "type": "command", "name": "AI visibility (Canonry)", "command": ["cnry", "visibility-stats", "my-site", "--format", "json"] }
+  ]
+}
+```
+
+| Source | What it adds | Needs |
+|---|---|---|
+| `geo-optimizer` | [GEO Optimizer](https://github.com/Auriti-Labs/geo-optimizer-skill) (MIT): a 0-100 AI-readiness score with checks for crawler access, `llms.txt`, structured data, meta tags and content. It audits public URLs only. | [`uv`](https://docs.astral.sh/uv/) on PATH (runs it with `uvx`, nothing to install), or `pip install geo-optimizer-skill` and `"command": ["geo"]` |
+| `command` | Any tool that prints a report. The example reads AI-visibility figures from [Canonry](https://github.com/Canonry/canonry) (MIT): whether ChatGPT, Claude or Gemini mention and cite you for the queries you track. | The tool installed and set up; Canonry needs its own server running and your own provider keys |
+
+Commands run without a shell, with the words exactly as listed. A tool that is missing or fails is reported under "What changed" and the check continues without it.
+
+Each check runs the audit tools, takes a snapshot of the site's pages (sitemap first, links otherwise) and compares it with the previous one, reads the commits made since, and saves at most eight recommendations, each with the reason, the concrete change and the evidence. Each recommendation that needs a code or content change also carries a self-contained prompt for a coding agent: copy it from the interface with "Copy prompt", or pipe it, for example `npm run -s cmo -- prompt a1b2c3 | claude`. The first check treats the whole site as new. `ui --every` keeps the process running; to schedule without it, run `npm run cmo -- review` from cron.
+
+"PLG 2.0" and "PLG 3.0" have no single agreed definition. `skills/plg-review/SKILL.md` states the one used here (product-led with sales and lifecycle assistance; AI-native products that are also usable by agents); edit it to match yours.
+
+### Campaigns
+
+A campaign turns a brief into one goal, one message, a schedule in phases, and every post written out, optionally built around files you supply such as feature catalogs.
+
+1. Put the files in the `materials/` folder (PDF, PNG/JPG/WebP/GIF, `.md`, `.txt`; up to 20 MB each). Other formats are ignored, so export slides or documents to PDF.
+2. In the interface open "Kampanyalar", describe the campaign, pick a start date and length, tick the files to use, and start planning. Or from the terminal:
+
+```bash
+npm run cmo -- materials
+npm run cmo -- campaign "Announce our six feature catalogs on the LinkedIn company page" --weeks 6 --materials "01-reports.pdf,02-churn.pdf"
+```
+
+The agent reads every selected file, orders them by what the audience needs first, and writes a launch post and a follow-up for each. A post that announces a file names it as its attachment, so you know what to share with it. Anything the campaign needs on the site first (a download page, a tracked link) is added to the recommendations list. Posts appear under the campaign in sharing order, with the same copy, "Paylaştım" and reject controls as elsewhere.
+
+### Images for posts
+
+A post can carry one image, drawn from a fixed branded layout and rendered locally as a 1200 x 1200 PNG (no browser and no image model involved):
+
+| Kind | Shows | Used when |
+|---|---|---|
+| `stat` | One large number, the claim it supports, its source | The post opens on a number |
+| `statement` | One sentence | The post turns on a line worth remembering |
+| `screenshot` | A real screen of the product under a headline | The post announces something visible in the product |
+
+The agent chooses the kind and writes the words when it writes the post. For posts that already exist, "Görseli olmayan gönderilere görsel öner" in the interface (or `npm run cmo -- visuals`) adds images without touching the text.
+
+The layouts never draw the product. For a `screenshot` image the agent writes a request for the coding agent that builds your product (which screen, which state, demo data only, size, file name). Give that agent the request, put the resulting PNG in `materials/` under the name shown, and the image completes itself; until then it shows a placeholder. Preview and download are on each post; `npm run cmo -- visual <id> out.png` writes one from the terminal.
+
+Colours, logo and footer come from an optional `visual` section in `brand.json`:
+
+```json
+"visual": {
+  "background": "#101828",
+  "foreground": "#FFFFFF",
+  "muted": "#B4BDCC",
+  "accent": "#7CD4FD",
+  "logo": "logo.png",
+  "logoHeight": 56,
+  "footer": "example.com",
+  "font": "Inter"
+}
+```
+
+`logo` is a PNG in `materials/`; without one the brand name is written out. Raise `logoHeight` when the logo file includes clear space around the mark. `font` is `Inter` or `Outfit`; both are bundled with the project, so nothing is downloaded.
+
+### Posts
+
+```bash
+npm run cmo -- plan "One week of LinkedIn posts for the Funnels launch, 3 posts"
+npm run cmo -- drafts pending
+npm run cmo -- show a1b2c3
+npm run cmo -- approve a1b2c3                  # schedule at the draft's time
+npm run cmo -- approve a1b2c3 --now            # publish immediately
+npm run cmo -- approve a1b2c3 --at 2026-12-01T09:00:00+03:00 --channel <id>
+npm run cmo -- reject a1b2c3 "Too salesy, lead with the customer result"
+npm run cmo -- channels
+npm run cmo -- skills
+```
+
+Each waiting post can be changed before it goes out: "Kısalt" (about half the length), "Netleştir" (easier to read, no longer), "Değiştir" (as you instruct), or edited by hand. The agent rewrites from the post alone, so it adds no new facts. Every change keeps the previous text and can be undone. From the terminal: `npm run cmo -- revise a1b2c3 shorten`, `clarify`, or an instruction in quotes.
+
+Approving and rejecting also work from the interface. Without Postiz, each post has "Metni kopyala" (copy) and "Paylaştım" (shared by hand), which records the post as published so the agent does not propose the same topic again.
+
+## Running on a server
+
+To reach the desk from anywhere and have checks run while your computer is off, run it on a small Linux server with Docker. You need a domain (or subdomain) whose DNS points at the server; Caddy gets the HTTPS certificate for it.
+
+```bash
+git clone <this repository> && cd ai-cmo
+cp .env.example .env        # set ANTHROPIC_API_KEY, CMO_DOMAIN, CMO_PASSWORD; CMO_GIT_TOKEN for private repos
+mkdir data && sudo chown 1000:1000 data    # the container runs as user 1000
+cp brand.example.json data/brand.json      # edit both
+cp watch.example.json data/watch.json
+docker compose up -d --build
+```
+
+On a server there is no local clone of your app, so list repositories in `data/watch.json` by `url` instead of `path`. The server keeps a history-only mirror and fetches it before each check:
+
+```json
+"repos": [{ "name": "app", "url": "https://github.com/you/app.git" }]
+```
+
+What changes in server mode:
+
+- **Sign-in.** The desk asks for `CMO_PASSWORD` (at least 12 characters). Sessions last 30 days. Each wrong password blocks further attempts for a growing wait, up to five minutes.
+- **One address.** Requests are answered only for the `CMO_DOMAIN` host name, and writes only from that origin. The process refuses to listen on a non-local address without a password and a public URL.
+- **Checks.** They run every `CMO_REVIEW_EVERY_HOURS` hours (default 24), and from the "Şimdi kontrol et" button.
+- **GEO Optimizer** is installed in the image; no `command` is needed in the `geo-optimizer` source.
+- **Data.** Everything lives in `./data` on the server: your two config files, the lists, the mirrored repositories and the session key. Back that folder up.
+
+To update: `git pull && docker compose up -d --build`.
+
+## Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | | Claude API key |
+| `POSTIZ_API_URL` | `https://api.postiz.com/public/v1` | Postiz public API; for self-hosted use `https://<backend>/public/v1` |
+| `POSTIZ_API_KEY` | | Postiz API key, from your Postiz settings |
+| `CMO_MODEL` | `claude-opus-5-5` | Model for the agent |
+| `CMO_EFFORT` | `high` | `low` to `max`; lower is faster and cheaper |
+| `CMO_WEB_SEARCH` | on | Set `0` to disable web research |
+| `CMO_UI_PORT` | `4321` | Port of the interface |
+| `CMO_HOST` | `127.0.0.1` | Address to listen on; anything else requires the two below |
+| `CMO_PUBLIC_URL` | | The address people open, e.g. `https://cmo.example.com` |
+| `CMO_PASSWORD` | | Sign-in password; when set, the desk asks for it even on localhost |
+| `CMO_GIT_TOKEN` | | Token for cloning private repositories given by `url` |
+| `CMO_GEO_COMMAND` | `uvx --from geo-optimizer-skill geo` | How to run GEO Optimizer |
+| `CMO_BRAND_FILE`, `CMO_WATCH_FILE`, `CMO_SKILLS_DIR`, `CMO_DATA_DIR` | `brand.json`, `watch.json`, `skills/`, `data/` | File locations |
+
+## Layout
+
+| Path | What it holds |
+|---|---|
+| `src/agent.ts` | Post-planning prompt and tools, the tool-runner loop |
+| `src/review.ts` | The site and product review: inputs, prompt, tools, run record |
+| `src/sources.ts` | Runs the external audit tools and collects their reports |
+| `src/site.ts` | Page snapshot and diff, for change tracking |
+| `src/repo.ts` | Recent commits from a local git clone |
+| `src/recommendations.ts` | Recommendation list (JSON file) |
+| `src/ui.ts` | Server: the JSON API and the built interface |
+| `src/auth.ts` | Password sign-in and signed session cookies |
+| `Dockerfile`, `docker-compose.yml`, `Caddyfile` | Server deployment |
+| `web/` | The interface: React, Vite, Tailwind and [shadcn/ui](https://ui.shadcn.com) components (`web/src/components/ui`) |
+| `src/publish.ts` | Approve and reject: the only path from a draft to Postiz |
+| `src/postiz.ts` | Postiz public API client |
+| `src/drafts.ts` | Review queue (JSON file) |
+| `src/skills.ts`, `skills/` | Skill discovery and the included playbooks |
+| `src/brand.ts` | Brand file schema |
+| `src/cli.ts` | Command line |
+
+## Cost
+
+Each review and each `plan` run records the tokens it used and an estimated cost; the interface shows the last review's cost, the 30-day total and a per-review breakdown under "Geçmiş", and the CLI prints a `Cost:` line. The estimate multiplies token counts by the list prices in `src/pricing.ts`, so update that table when prices or models change. It does not include web-search fees; the invoice in the Anthropic console is the figure that counts.
+
+To spend less: run reviews less often (`--every`), lower `maxPages`, or set `CMO_MODEL=claude-sonnet-5-5` or `CMO_EFFORT=medium`.
+
+## Working on the interface
+
+`web/` is its own package. Interface text lives in `web/src/lib/tr.ts` and in the components. The components in `web/src/components/ui` are shadcn/ui sources (MIT) copied into the project, so they are yours to edit; `web/components.json` is set up for `npx shadcn@latest add <component>`. The theme lives in `web/src/index.css`.
+
+```bash
+npm run cmo -- ui                    # the API on :4321
+npm --prefix web run dev             # the interface with hot reload, proxying /api to :4321
+```
+
+## Tests
+
+```bash
+npm test          # runs against local fake Postiz and Claude API servers; no keys needed
+npm run typecheck
+```
+
+## Limits
+
+- Out of the box the review sees the public site, the GEO audit and commit messages: no analytics, no Search Console, no logged-in product. Canonry can supply Search Console and AI-visibility data as a `command` source, but that path has only been tested with a stand-in command, not a configured Canonry instance.
+- There is no dedicated technical-SEO crawler (broken links, redirect chains). SEOnaut was considered and left out: it is a web application that needs MySQL and Docker and has no command-line or API output to read.
+- The page snapshot is taken without running JavaScript, so content rendered only in the browser is not seen. That is also how most AI crawlers see the site.
+- Text posts only; no images or video yet.
+- Everything is stored in JSON files on one machine, for one user. There are no accounts; the password is shared by whoever you give it to.
+- The Docker image and the compose setup have not been built or run end to end. The same server command, with the same settings, was run and tested outside Docker.
+- Some Postiz providers require settings (for example who can reply on X). The agent reads the schema from Postiz and fills them in, and Postiz validates them on approve.

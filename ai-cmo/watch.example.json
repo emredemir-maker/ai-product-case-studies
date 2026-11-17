@@ -1,0 +1,9 @@
+{
+  "site": { "url": "https://example.com", "maxPages": 30 },
+  "repos": [
+    { "name": "app", "path": "../my-app" }
+  ],
+  "sources": [
+    { "type": "geo-optimizer" }
+  ]
+}

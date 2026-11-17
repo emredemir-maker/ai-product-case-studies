@@ -1,0 +1,31 @@
+# Runs the growth desk behind Caddy, which obtains and renews the HTTPS certificate.
+# Before starting: point your domain's DNS at this server, fill in .env (see .env.example),
+# and put brand.json and watch.json in ./data.
+services:
+  cmo:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CMO_PUBLIC_URL: https://${CMO_DOMAIN:?Set CMO_DOMAIN in .env}
+    volumes:
+      - ./data:/data
+    expose:
+      - "4321"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - cmo
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CMO_DOMAIN: ${CMO_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+
+volumes:
+  caddy_data:
