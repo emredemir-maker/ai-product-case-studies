@@ -128,7 +128,7 @@ The founder reads ${brand.language}. Write every recommendation field (title, wh
 
 # When you finish
 
-Reply with a short note to the founder: what changed since the last review in two or three sentences, then what you recommend first and why. Plain prose, no headings.`;
+Reply with a short note to the founder: what changed since the last review in two or three sentences, then what you recommend first and why. Keep it to a few short paragraphs; the recommendations themselves are already on the list, so do not walk through each one. The note is shown as plain text, so write prose without Markdown: no headings, bullet lists or bold.`;
 }
 
 function buildReviewTools(deps: ReviewDeps, origin: string, recommendationIds: string[]) {
