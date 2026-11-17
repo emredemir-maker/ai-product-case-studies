@@ -1,6 +1,7 @@
-import { FileClock, ListChecks, type LucideIcon, RefreshCw, Send, Sparkles, Terminal } from "lucide-react"
+import { FileClock, ListChecks, LogOut, type LucideIcon, RefreshCw, Send, Sparkles, Terminal } from "lucide-react"
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import { LoginScreen } from "@/components/login-screen"
 import { PostCard } from "@/components/post-card"
 import { RecommendationDetail } from "@/components/recommendation-detail"
 import { RunCard } from "@/components/run-card"
@@ -12,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Toaster } from "@/components/ui/sonner"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { type DeskState, type Recommendation, call } from "@/lib/api"
+import { type DeskState, type Recommendation, SignInRequired, call } from "@/lib/api"
 import { AREA, PRIORITY, REC_STATUS, ago, day } from "@/lib/tr"
 import { useMedia } from "@/lib/use-media"
 import { cn } from "@/lib/utils"
@@ -36,6 +37,7 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
 export default function App() {
   const [state, setState] = useState<DeskState | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [signInRequired, setSignInRequired] = useState(false)
   const [busy, setBusy] = useState(false)
   const [view, setView] = useState<View>("todo")
   const [area, setArea] = useState<"all" | Recommendation["area"]>("all")
@@ -52,6 +54,12 @@ export default function App() {
       setState(await call(path, body))
       setLoadError(null)
     } catch (error) {
+      if (error instanceof SignInRequired) {
+        // The session ended, or there never was one: show the sign-in screen.
+        setState(null)
+        setSignInRequired(true)
+        return
+      }
       const message = error instanceof Error ? error.message : String(error)
       // A failed action leaves the page as it was; a failed first load has nothing to show.
       if (body === undefined) setLoadError(message)
@@ -60,6 +68,12 @@ export default function App() {
       busyRef.current = false
       setBusy(false)
     }
+  }, [])
+
+  const signOut = useCallback(async () => {
+    await fetch("/api/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {})
+    setState(null)
+    setSignInRequired(true)
   }, [])
 
   useEffect(() => {
@@ -76,6 +90,17 @@ export default function App() {
     const timer = setInterval(() => !busyRef.current && void run("/api/state"), 4000)
     return () => clearInterval(timer)
   }, [checking, run])
+
+  if (signInRequired && !state) {
+    return (
+      <LoginScreen
+        onSignedIn={(next) => {
+          setSignInRequired(false)
+          setState(next)
+        }}
+      />
+    )
+  }
 
   if (!state) {
     return <main className="p-8">{loadError ? <Empty>Yüklenemedi: {loadError}</Empty> : <Empty>Yükleniyor…</Empty>}</main>
@@ -116,7 +141,14 @@ export default function App() {
             </p>
             <p className="mt-0.5 truncate text-sm text-ink-muted">{state.site ? state.site.replace(/^https?:\/\//, "") : "Site ayarlanmadı"}</p>
           </div>
-          <div className="w-44 shrink-0 lg:hidden">{checkButton}</div>
+          <div className="flex shrink-0 items-center gap-1 lg:hidden">
+            <div className="w-44">{checkButton}</div>
+            {state.authEnabled && (
+              <button type="button" onClick={signOut} aria-label="Çıkış yap" className="rounded-lg p-2 text-ink-muted outline-none hover:text-ink-foreground focus-visible:ring-2 focus-visible:ring-signal">
+                <LogOut className="size-4" />
+              </button>
+            )}
+          </div>
         </div>
         <nav className="flex gap-1 overflow-x-auto lg:flex-col" aria-label="Bölümler">
           {nav.map(({ id, label, icon: Icon, count }) => (
@@ -140,6 +172,16 @@ export default function App() {
           {checkButton}
           <p className="text-center text-xs text-ink-muted">{checking ? "Site ve son commit'ler inceleniyor" : last ? `Son kontrol ${ago(last.at)}` : "Henüz kontrol yapılmadı"}</p>
         </div>
+        {state.authEnabled && (
+          <button
+            type="button"
+            onClick={signOut}
+            className="flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm text-ink-muted outline-none hover:bg-ink-raised/60 hover:text-ink-foreground focus-visible:ring-2 focus-visible:ring-signal max-lg:hidden"
+          >
+            <LogOut className="size-4" />
+            Çıkış yap
+          </button>
+        )}
       </aside>
 
       <main className="min-w-0 space-y-6 p-4 pb-16 sm:p-6 lg:p-8">

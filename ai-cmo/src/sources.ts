@@ -12,8 +12,11 @@ export const SourceSchema = z.discriminatedUnion("type", [
   z.object({
     /** GEO Optimizer (MIT, github.com/Auriti-Labs/geo-optimizer-skill): AI-readiness audit of the site. */
     type: z.literal("geo-optimizer"),
-    /** How to invoke its CLI. The default needs `uv`; use ["geo"] after `pip install geo-optimizer-skill`. */
-    command: z.array(z.string()).min(1).default(["uvx", "--from", "geo-optimizer-skill", "geo"]),
+    /**
+     * How to invoke its CLI. Left out, it is `uvx --from geo-optimizer-skill geo` (needs `uv`), or
+     * the words in CMO_GEO_COMMAND when that is set, as it is in the Docker image.
+     */
+    command: z.array(z.string()).min(1).optional(),
     /** Audit up to this many sitemap pages and average them, instead of the home page only. */
     maxPages: z.number().int().min(2).max(500).optional(),
   }),
@@ -49,11 +52,16 @@ function summarizeGeo(stdout: string): Pick<SourceResult, "score" | "band" | "re
   };
 }
 
+export function geoCommand(env: NodeJS.ProcessEnv = process.env): string[] {
+  const configured = env.CMO_GEO_COMMAND?.trim().split(/\s+/).filter(Boolean);
+  return configured?.length ? configured : ["uvx", "--from", "geo-optimizer-skill", "geo"];
+}
+
 export async function runSource(source: Source, siteUrl: string): Promise<SourceResult> {
   const isGeo = source.type === "geo-optimizer";
   const name = isGeo ? "GEO Optimizer audit" : source.name;
   const [file, ...args] = isGeo
-    ? [...source.command, "audit", "--url", siteUrl, "--format", "json", ...(source.maxPages ? ["--max-pages", String(source.maxPages)] : [])]
+    ? [...(source.command ?? geoCommand()), "audit", "--url", siteUrl, "--format", "json", ...(source.maxPages ? ["--max-pages", String(source.maxPages)] : [])]
     : source.command;
   try {
     // No shell: the configured words are passed to the program as arguments, never interpreted.

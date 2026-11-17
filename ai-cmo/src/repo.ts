@@ -35,3 +35,25 @@ export async function recentCommits(repoPath: string, since: string, limit = 60)
       };
     });
 }
+
+/**
+ * Keeps a history-only mirror of a remote repository in `dir`: cloned on first use, fetched after.
+ * File contents are not downloaded (`--filter=blob:none`); commit messages and file names are enough.
+ * The token is passed to git through the environment, so it never appears in a process listing.
+ */
+export async function syncRepo(url: string, dir: string, token: string | null): Promise<void> {
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+  if (token && /^https:\/\//.test(url)) {
+    env.GIT_CONFIG_COUNT = "1";
+    env.GIT_CONFIG_KEY_0 = "http.extraHeader";
+    env.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString("base64")}`;
+  }
+  const git = (args: string[]) => run("git", args, { env, timeout: 5 * 60_000, maxBuffer: 8 * 1024 * 1024 });
+  try {
+    await run("git", ["-C", dir, "rev-parse", "--git-dir"]);
+  } catch {
+    await git(["clone", "--bare", "--filter=blob:none", "--quiet", url, dir]);
+    return;
+  }
+  await git(["-C", dir, "fetch", "--quiet", "--prune", url, "+refs/heads/*:refs/heads/*"]);
+}

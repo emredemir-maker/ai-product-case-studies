@@ -1,0 +1,4 @@
+{$CMO_DOMAIN} {
+	encode gzip
+	reverse_proxy cmo:4321
+}

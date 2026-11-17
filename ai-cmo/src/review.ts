@@ -6,7 +6,7 @@ import { z } from "zod";
 import { type AgentDeps, buildTools, runLoop } from "./agent.ts";
 import { type Brand, renderBrand } from "./brand.ts";
 import { AREAS, PRIORITIES, type RecommendationStore } from "./recommendations.ts";
-import { type Commit, recentCommits } from "./repo.ts";
+import { type Commit, recentCommits, syncRepo } from "./repo.ts";
 import { type SiteDiff, type SiteSnapshot, type SnapshotStore, crawlSite, diffSites } from "./site.ts";
 import { type SourceResult, SourceSchema, runSource } from "./sources.ts";
 import { type Skill, renderSkillIndex } from "./skills.ts";
@@ -14,19 +14,32 @@ import { JsonList } from "./store.ts";
 
 export const WatchSchema = z.object({
   site: z.object({ url: z.url(), maxPages: z.number().int().min(1).max(200).default(30) }),
-  repos: z.array(z.object({ name: z.string().min(1), path: z.string().min(1) })).default([]),
+  repos: z
+    .array(
+      z
+        .object({
+          name: z.string().regex(/^[\w.-]+$/, "Use letters, digits, dots, dashes and underscores"),
+          /** A git clone on this machine. */
+          path: z.string().min(1).optional(),
+          /** Or a remote to mirror, e.g. https://github.com/you/app.git. Used when running on a server. */
+          url: z.string().min(1).optional(),
+        })
+        .refine((r) => Boolean(r.path) !== Boolean(r.url), "Give either path or url"),
+    )
+    .default([]),
   sources: z.array(SourceSchema).default([]),
 });
 export type Watch = z.infer<typeof WatchSchema>;
 
-export function loadWatch(file: string): Watch {
+/** `reposDir` is where repositories given by URL are mirrored. */
+export function loadWatch(file: string, reposDir: string): Watch {
   if (!fs.existsSync(file)) {
     throw new Error(`Watch file not found: ${file}. Copy watch.example.json to watch.json and set your site and repos.`);
   }
   const parsed = WatchSchema.safeParse(JSON.parse(fs.readFileSync(file, "utf8")));
   if (!parsed.success) throw new Error(`Invalid watch file ${file}:\n${z.prettifyError(parsed.error)}`);
   const base = path.dirname(file);
-  return { ...parsed.data, repos: parsed.data.repos.map((r) => ({ ...r, path: path.resolve(base, r.path) })) };
+  return { ...parsed.data, repos: parsed.data.repos.map((r) => ({ ...r, path: r.url ? path.join(reposDir, `${r.name}.git`) : path.resolve(base, r.path!) })) };
 }
 
 /** The record of one review, shown under "What changed" in the interface. */
@@ -65,6 +78,7 @@ export interface ReviewDeps extends AgentDeps {
   recommendations: RecommendationStore;
   snapshots: SnapshotStore;
   runs: RunStore;
+  gitToken?: string | null;
 }
 
 export function buildReviewSystemPrompt(brand: Brand, skills: Skill[]): string {
@@ -218,9 +232,12 @@ export async function runReview(deps: ReviewDeps): Promise<Run> {
   const problems: string[] = [];
   for (const repo of deps.watch.repos) {
     try {
-      commits.set(repo.name, await recentCommits(repo.path, since));
+      if (repo.url) await syncRepo(repo.url, repo.path!, deps.gitToken ?? null);
+      commits.set(repo.name, await recentCommits(repo.path!, since));
     } catch (error) {
-      problems.push(`Could not read commits from ${repo.name} (${repo.path}): ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);
+      // The last line of git's output says what went wrong; the first is only the command.
+      const detail = error instanceof Error ? (error.message.trim().split("\n").at(-1) ?? error.message) : String(error);
+      problems.push(`Could not read commits from ${repo.name} (${repo.url ?? repo.path}): ${detail}`);
     }
   }
 

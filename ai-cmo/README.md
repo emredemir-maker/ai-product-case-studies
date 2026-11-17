@@ -23,7 +23,7 @@ your repos ──git log─────┘         │      (each with a prompt 
 - **Postiz stays a separate service.** This project talks to its public HTTP API only. Postiz is AGPL-3.0; none of its code is included or linked here.
 - **Rejections are feedback.** Rejecting a post or dismissing a recommendation stores your reason, and the agent reads it before its next run.
 - **Existing tools measure, the agent judges.** SEO and GEO rules are not implemented here. Each check runs external audit tools and gives their reports to the agent, which decides what matters for this product, reads pages where it needs to, and writes the fix. What this project adds is the part those tools lack: tying site changes to your commits, the PLG view, one prioritized list, and a prompt per item.
-- **Local and single-user.** The interface listens on `127.0.0.1` only, and accepts writes only from its own page.
+- **Single-user.** By default the interface listens on `127.0.0.1` only and accepts writes only from its own page. On a server it sits behind a password and one fixed address (see "Running on a server").
 
 ## Setup
 
@@ -91,6 +91,35 @@ npm run cmo -- skills
 
 Approving and rejecting also work from the interface.
 
+## Running on a server
+
+To reach the desk from anywhere and have checks run while your computer is off, run it on a small Linux server with Docker. You need a domain (or subdomain) whose DNS points at the server; Caddy gets the HTTPS certificate for it.
+
+```bash
+git clone <this repository> && cd ai-cmo
+cp .env.example .env        # set ANTHROPIC_API_KEY, CMO_DOMAIN, CMO_PASSWORD; CMO_GIT_TOKEN for private repos
+mkdir data && sudo chown 1000:1000 data    # the container runs as user 1000
+cp brand.example.json data/brand.json      # edit both
+cp watch.example.json data/watch.json
+docker compose up -d --build
+```
+
+On a server there is no local clone of your app, so list repositories in `data/watch.json` by `url` instead of `path`. The server keeps a history-only mirror and fetches it before each check:
+
+```json
+"repos": [{ "name": "app", "url": "https://github.com/you/app.git" }]
+```
+
+What changes in server mode:
+
+- **Sign-in.** The desk asks for `CMO_PASSWORD` (at least 12 characters). Sessions last 30 days. Each wrong password blocks further attempts for a growing wait, up to five minutes.
+- **One address.** Requests are answered only for the `CMO_DOMAIN` host name, and writes only from that origin. The process refuses to listen on a non-local address without a password and a public URL.
+- **Checks.** They run every `CMO_REVIEW_EVERY_HOURS` hours (default 24), and from the "Şimdi kontrol et" button.
+- **GEO Optimizer** is installed in the image; no `command` is needed in the `geo-optimizer` source.
+- **Data.** Everything lives in `./data` on the server: your two config files, the lists, the mirrored repositories and the session key. Back that folder up.
+
+To update: `git pull && docker compose up -d --build`.
+
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -101,7 +130,12 @@ Approving and rejecting also work from the interface.
 | `CMO_MODEL` | `claude-opus-5-5` | Model for the agent |
 | `CMO_EFFORT` | `high` | `low` to `max`; lower is faster and cheaper |
 | `CMO_WEB_SEARCH` | on | Set `0` to disable web research |
-| `CMO_UI_PORT` | `4321` | Port of the local interface |
+| `CMO_UI_PORT` | `4321` | Port of the interface |
+| `CMO_HOST` | `127.0.0.1` | Address to listen on; anything else requires the two below |
+| `CMO_PUBLIC_URL` | | The address people open, e.g. `https://cmo.example.com` |
+| `CMO_PASSWORD` | | Sign-in password; when set, the desk asks for it even on localhost |
+| `CMO_GIT_TOKEN` | | Token for cloning private repositories given by `url` |
+| `CMO_GEO_COMMAND` | `uvx --from geo-optimizer-skill geo` | How to run GEO Optimizer |
 | `CMO_BRAND_FILE`, `CMO_WATCH_FILE`, `CMO_SKILLS_DIR`, `CMO_DATA_DIR` | `brand.json`, `watch.json`, `skills/`, `data/` | File locations |
 
 ## Layout
@@ -114,7 +148,9 @@ Approving and rejecting also work from the interface.
 | `src/site.ts` | Page snapshot and diff, for change tracking |
 | `src/repo.ts` | Recent commits from a local git clone |
 | `src/recommendations.ts` | Recommendation list (JSON file) |
-| `src/ui.ts` | Local server: the JSON API and the built interface |
+| `src/ui.ts` | Server: the JSON API and the built interface |
+| `src/auth.ts` | Password sign-in and signed session cookies |
+| `Dockerfile`, `docker-compose.yml`, `Caddyfile` | Server deployment |
 | `web/` | The interface: React, Vite, Tailwind and [shadcn/ui](https://ui.shadcn.com) components (`web/src/components/ui`) |
 | `src/publish.ts` | Approve and reject: the only path from a draft to Postiz |
 | `src/postiz.ts` | Postiz public API client |
@@ -145,5 +181,6 @@ npm run typecheck
 - There is no dedicated technical-SEO crawler (broken links, redirect chains). SEOnaut was considered and left out: it is a web application that needs MySQL and Docker and has no command-line or API output to read.
 - The page snapshot is taken without running JavaScript, so content rendered only in the browser is not seen. That is also how most AI crawlers see the site.
 - Text posts only; no images or video yet.
-- Everything is stored in local JSON files, for one user on one machine.
+- Everything is stored in JSON files on one machine, for one user. There are no accounts; the password is shared by whoever you give it to.
+- The Docker image and the compose setup have not been built or run end to end. The same server command, with the same settings, was run and tested outside Docker.
 - Some Postiz providers require settings (for example who can reply on X). The agent reads the schema from Postiz and fills them in, and Postiz validates them on approve.

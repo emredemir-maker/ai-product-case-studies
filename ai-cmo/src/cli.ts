@@ -3,6 +3,7 @@ import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { runAgent } from "./agent.ts";
 import { loadBrand } from "./brand.ts";
+import { Auth } from "./auth.ts";
 import { loadConfig } from "./config.ts";
 import { type Draft, DraftStore, type DraftStatus } from "./drafts.ts";
 import { PostizClient, PostizError } from "./postiz.ts";
@@ -80,7 +81,8 @@ async function main() {
       skills: discoverSkills(config.skillsDir),
       drafts: store,
       postiz,
-      watch: loadWatch(config.watchFile),
+      watch: loadWatch(config.watchFile, config.reposDir),
+      gitToken: config.gitToken,
       recommendations,
       snapshots: new SnapshotStore(config.snapshotsDir),
       runs,
@@ -154,16 +156,23 @@ async function main() {
     }
     case "ui": {
       const canReview = fs.existsSync(config.watchFile);
+      const loopback = ["127.0.0.1", "localhost", "::1"].includes(config.uiHost);
+      if (!loopback && !(config.password && config.publicUrl)) {
+        throw new Error("To listen on a non-local address (CMO_HOST), set CMO_PASSWORD and CMO_PUBLIC_URL. Without them anyone who can reach the port could approve posts.");
+      }
+      const auth = config.password ? new Auth(config.password, config.sessionSecretFile, config.publicUrl?.startsWith("https://") ?? false) : undefined;
       const server = createUiServer({
         staticDir: path.join(config.root, "web", "dist"),
         drafts: store,
         recommendations,
         runs,
         postiz,
-        site: canReview ? new URL(loadWatch(config.watchFile).site.url).origin : null,
+        site: canReview ? new URL(loadWatch(config.watchFile, config.reposDir).site.url).origin : null,
         review: canReview ? () => review() : undefined,
+        auth,
+        publicUrl: config.publicUrl ?? undefined,
       });
-      server.listen(config.uiPort, "127.0.0.1", () => console.log(`Growth desk: http://localhost:${config.uiPort}`));
+      server.listen(config.uiPort, config.uiHost, () => console.log(`Growth desk: ${config.publicUrl ?? `http://localhost:${config.uiPort}`}`));
       if (flags.every !== undefined) {
         const hours = Number(flags.every);
         if (!canReview || !(hours >= 1)) throw new Error("--every needs a number of hours (1 or more) and a watch.json");

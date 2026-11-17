@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import type { Auth } from "./auth.ts";
 import type { DraftStore } from "./drafts.ts";
 import type { PostizClient } from "./postiz.ts";
 import { approveDraft, rejectDraft } from "./publish.ts";
@@ -18,12 +19,17 @@ export interface UiDeps {
   site: string | null;
   /** Starts a review. Absent when the review cannot run (no watch file). */
   review?: () => Promise<Run>;
+  /** Password login. Required whenever the interface is reachable from other machines. */
+  auth?: Auth;
+  /** The address people open, e.g. https://cmo.example.com. Absent means localhost only. */
+  publicUrl?: string;
 }
 
 class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly headers: Record<string, string> = {},
   ) {
     super(message);
   }
@@ -41,9 +47,12 @@ const CONTENT_TYPES: Record<string, string> = {
 };
 
 /**
- * The local interface. It can approve posts for publishing, so every request must be addressed to
- * localhost (which stops DNS rebinding) and every write must come from this page (which stops
- * other sites open in the browser from posting to it).
+ * The interface server. It can approve posts for publishing, so:
+ * - every request must be addressed to the expected host: localhost, or the public address when
+ *   one is configured (this stops DNS rebinding and requests through an unexpected name);
+ * - every write must come from this page (this stops other sites open in the browser from
+ *   posting to it);
+ * - with `auth` set, everything under /api except login needs a signed-in session.
  */
 export function createUiServer(deps: UiDeps): http.Server {
   const staticDir = path.resolve(deps.staticDir);
@@ -64,6 +73,8 @@ export function createUiServer(deps: UiDeps): http.Server {
     if (!type || !file.startsWith(staticDir + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return null;
     return { body: fs.readFileSync(file), type };
   };
+  const publicOrigin = deps.publicUrl ? new URL(deps.publicUrl).origin : null;
+  const publicHost = deps.publicUrl ? new URL(deps.publicUrl).host : null;
   const review = { running: false, error: null as string | null };
 
   const startReview = () => {
@@ -83,6 +94,7 @@ export function createUiServer(deps: UiDeps): http.Server {
 
   const state = () => ({
     site: deps.site,
+    authEnabled: deps.auth !== undefined,
     canPublish: deps.postiz !== null,
     canReview: Boolean(deps.review),
     review,
@@ -116,15 +128,19 @@ export function createUiServer(deps: UiDeps): http.Server {
   };
 
   return http.createServer(async (req, res) => {
-    const send = (status: number, body: unknown) => {
-      res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+    const send = (status: number, body: unknown, headers: Record<string, string> = {}) => {
+      res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...headers });
       res.end(JSON.stringify(body));
     };
     try {
-      const host = req.headers.host ?? "";
-      if (!/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host)) throw new HttpError(403, "Open this page on localhost.");
-      const { pathname } = new URL(req.url ?? "/", `http://${host}`);
       const method = req.method ?? "GET";
+      // For container and proxy health checks, which do not send the public host name.
+      if (method === "GET" && req.url === "/healthz") return send(200, { ok: true });
+
+      const host = req.headers.host ?? "";
+      const hostAllowed = publicHost ? host === publicHost : /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host);
+      if (!hostAllowed) throw new HttpError(403, publicHost ? `Open this page at ${publicOrigin}.` : "Open this page on localhost.");
+      const { pathname } = new URL(req.url ?? "/", `http://${host}`);
 
       if (method === "GET" && !pathname.startsWith("/api/")) {
         const file = readStatic(pathname);
@@ -138,7 +154,7 @@ export function createUiServer(deps: UiDeps): http.Server {
       let body: Record<string, unknown> = {};
       if (method === "POST") {
         const origin = req.headers.origin;
-        if (origin !== `http://${host}` || !req.headers["content-type"]?.startsWith("application/json")) {
+        if (origin !== (publicOrigin ?? `http://${host}`) || !req.headers["content-type"]?.startsWith("application/json")) {
           throw new HttpError(403, "Writes are accepted only from this page.");
         }
         let raw = "";
@@ -148,10 +164,24 @@ export function createUiServer(deps: UiDeps): http.Server {
         }
         body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
       }
+      if (deps.auth) {
+        if (method === "POST" && pathname === "/api/login") {
+          const result = deps.auth.login(body.password);
+          if (!result.ok) {
+            throw new HttpError(401, "Wrong password, or too many attempts.", { "Retry-After": String(result.retryAfterSeconds) });
+          }
+          return send(200, state(), { "Set-Cookie": result.cookie });
+        }
+        if (method === "POST" && pathname === "/api/logout") return send(200, { ok: true }, { "Set-Cookie": deps.auth.logoutCookie() });
+        if (!deps.auth.isSignedIn(req.headers.cookie)) throw new HttpError(401, "Sign in required.");
+      }
       send(200, await route(method, pathname, body));
     } catch (error) {
       const status = error instanceof HttpError ? error.status : 400;
-      send(status, { error: error instanceof Error ? error.message : String(error) });
+      const body: Record<string, unknown> = { error: error instanceof Error ? error.message : String(error) };
+      if (status === 401) body.signInRequired = true;
+      if (error instanceof HttpError && error.headers["Retry-After"]) body.retryAfterSeconds = Number(error.headers["Retry-After"]);
+      send(status, body, error instanceof HttpError ? error.headers : {});
     }
   });
 }

@@ -5,7 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { recentCommits } from "../src/repo.ts";
 import { SnapshotStore, crawlSite, diffSites } from "../src/site.ts";
-import { SourceSchema, runSource } from "../src/sources.ts";
+import { SourceSchema, geoCommand, runSource } from "../src/sources.ts";
 import { fakeSite, tmpDir } from "./helpers.ts";
 
 test("crawl reads the sitemap and same-origin pages, and extracts page signals", async () => {
@@ -106,7 +106,8 @@ test("sources: GEO Optimizer preset builds the audit command and reads score and
   assert.equal(result.band, "foundation");
   assert.deepEqual(result.recommendations, ["Create /llms.txt"]);
   assert.deepEqual(JSON.parse(result.output).argv, ["audit", "--url", "https://acme.test", "--format", "json", "--max-pages", "10"]);
-  assert.deepEqual(SourceSchema.parse({ type: "geo-optimizer" }).command, ["uvx", "--from", "geo-optimizer-skill", "geo"]);
+  assert.deepEqual(geoCommand({}), ["uvx", "--from", "geo-optimizer-skill", "geo"]);
+  assert.deepEqual(geoCommand({ CMO_GEO_COMMAND: " /opt/geo/bin/geo  --no-plugins " }), ["/opt/geo/bin/geo", "--no-plugins"]);
 });
 
 test("sources: a command's output is passed through; failures are reported, not thrown", async () => {
