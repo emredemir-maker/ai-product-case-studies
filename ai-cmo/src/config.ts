@@ -10,6 +10,9 @@ export interface Config {
   draftsFile: string;
   recommendationsFile: string;
   runsFile: string;
+  campaignsFile: string;
+  /** Folder of catalogs and other files a campaign can draw on. */
+  materialsDir: string;
   snapshotsDir: string;
   watchFile: string;
   uiPort: number;
@@ -44,6 +47,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     draftsFile: path.join(dataDir, "drafts.json"),
     recommendationsFile: path.join(dataDir, "recommendations.json"),
     runsFile: path.join(dataDir, "runs.json"),
+    campaignsFile: path.join(dataDir, "campaigns.json"),
+    materialsDir: env.CMO_MATERIALS_DIR ?? path.join(root, "materials"),
     snapshotsDir: path.join(dataDir, "snapshots"),
     watchFile: env.CMO_WATCH_FILE ?? path.join(root, "watch.json"),
     uiPort: Number(env.CMO_UI_PORT ?? 4321),

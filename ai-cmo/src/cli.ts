@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { runAgent } from "./agent.ts";
 import { loadBrand } from "./brand.ts";
 import { Auth } from "./auth.ts";
+import { CampaignStore, listMaterials, runCampaign } from "./campaign.ts";
 import { loadConfig } from "./config.ts";
 import { DRAFT_STATUSES, type Draft, DraftStore, type DraftStatus } from "./drafts.ts";
 import { PostizClient, PostizError } from "./postiz.ts";
@@ -24,6 +25,9 @@ const USAGE = `Usage: cmo <command>
                             Send a draft to Postiz (scheduled, or immediately with --now)
   reject <id> [reason]      Reject a draft; the agent reads the reason on its next run
   review                    Check the site and recent commits; save recommendations and posts
+  campaign "<brief>" [--weeks <n>] [--start <YYYY-MM-DD>] [--materials <a.pdf,b.pdf>]
+                            Plan a campaign; files come from the materials folder
+  materials                 List the files a campaign can draw on
   todo [status]             List recommendations (open | done | dismissed)
   prompt <id>               Print a recommendation's prompt for a coding agent
   ui [--every <hours>]      Open the local interface; optionally run a review on an interval
@@ -73,6 +77,21 @@ async function main() {
   const postiz = config.postiz ? new PostizClient(config.postiz.baseUrl, config.postiz.apiKey) : null;
   const recommendations = new RecommendationStore(config.recommendationsFile);
   const runs = new RunStore(config.runsFile);
+  const campaigns = new CampaignStore(config.campaignsFile);
+  const watchedOrigin = () => (fs.existsSync(config.watchFile) ? new URL(loadWatch(config.watchFile, config.reposDir).site.url).origin : null);
+  const planCampaign = (input: unknown, onActivity?: (line: string) => void) =>
+    runCampaign(input, {
+      config,
+      brand: loadBrand(config.brandFile),
+      skills: discoverSkills(config.skillsDir),
+      drafts: store,
+      postiz,
+      campaigns,
+      recommendations,
+      materialsDir: config.materialsDir,
+      siteOrigin: watchedOrigin(),
+      onActivity,
+    });
   let reviewing: ReturnType<typeof runReview> | undefined;
   // One review at a time: the interval and the "Check now" button share the run in progress.
   const review = (onActivity?: (line: string) => void) =>
@@ -135,6 +154,30 @@ async function main() {
       console.log(`Rejected ${draft.id}.`);
       break;
     }
+    case "materials": {
+      const list = listMaterials(config.materialsDir);
+      console.log(list.length ? list.map((m) => `${m.name}  (${m.kind}, ${Math.max(1, Math.round(m.bytes / 1024))} KB)`).join("\n") : `No readable files in ${config.materialsDir}. Put PDF, image, .md or .txt files there.`);
+      break;
+    }
+    case "campaign": {
+      // Default start: the next Monday, so the plan begins on a full week.
+      const monday = new Date();
+      monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
+      const campaign = await planCampaign(
+        {
+          brief: requireArg(positional.join(" ").trim(), "brief"),
+          weeks: flags.weeks === undefined ? 4 : Number(flags.weeks),
+          startsOn: typeof flags.start === "string" ? flags.start : monday.toISOString().slice(0, 10),
+          materials: typeof flags.materials === "string" ? flags.materials.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        },
+        (line) => console.error(`  · ${line}`),
+      );
+      console.log(`\n${campaign.name} (${campaign.startsOn} to ${campaign.endsOn})\nGoal: ${campaign.goal}\nMessage: ${campaign.message}\n\n${campaign.summary}\n`);
+      if (!campaign.complete) console.error("Warning: planning stopped early; the posts written so far are kept.");
+      console.log(`${campaign.draftIds.length} post(s), ${campaign.recommendationIds.length} site task(s). See: cmo ui`);
+      if (campaign.usage) console.log(`Cost: ${formatUsage(campaign.usage)}`);
+      break;
+    }
     case "review": {
       const run = await review((line) => console.error(`  · ${line}`));
       console.log(`\n${run.summary}\n`);
@@ -172,6 +215,7 @@ async function main() {
         postiz,
         site: canReview ? new URL(loadWatch(config.watchFile, config.reposDir).site.url).origin : null,
         review: canReview ? () => review() : undefined,
+        campaigns: fs.existsSync(config.brandFile) ? { store: campaigns, materialsDir: config.materialsDir, plan: (input) => planCampaign(input) } : undefined,
         auth,
         publicUrl: config.publicUrl ?? undefined,
       });

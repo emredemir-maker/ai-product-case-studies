@@ -1,7 +1,8 @@
-import { FileClock, ListChecks, LogOut, type LucideIcon, RefreshCw, Send, Sparkles, Terminal } from "lucide-react"
+import { FileClock, ListChecks, LogOut, type LucideIcon, Megaphone, RefreshCw, Send, Sparkles, Terminal } from "lucide-react"
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { LoginScreen } from "@/components/login-screen"
+import { CampaignsView } from "@/components/campaigns-view"
 import { PostCard } from "@/components/post-card"
 import { RecommendationDetail } from "@/components/recommendation-detail"
 import { RunCard } from "@/components/run-card"
@@ -18,7 +19,7 @@ import { AREA, PRIORITY, REC_STATUS, ago, day, usd } from "@/lib/tr"
 import { useMedia } from "@/lib/use-media"
 import { cn } from "@/lib/utils"
 
-type View = "todo" | "posts" | "changes"
+type View = "todo" | "campaigns" | "posts" | "changes"
 const PRIORITY_ORDER = ["high", "medium", "low"] as const
 
 function Empty({ children }: { children: ReactNode }) {
@@ -103,11 +104,12 @@ export default function App() {
 
   // While a check runs on the server, poll for its result.
   const checking = state?.review.running ?? false
+  const working = checking || (state?.planning.running ?? false)
   useEffect(() => {
-    if (!checking) return
+    if (!working) return
     const timer = setInterval(() => !busyRef.current && void run("/api/state"), 4000)
     return () => clearInterval(timer)
-  }, [checking, run])
+  }, [working, run])
 
   if (signInRequired && !state) {
     return (
@@ -140,6 +142,7 @@ export default function App() {
 
   const nav: { id: View; label: string; icon: LucideIcon; count?: number }[] = [
     { id: "todo", label: "Öneriler", icon: ListChecks, count: openRecs.length },
+    { id: "campaigns", label: "Kampanyalar", icon: Megaphone, count: state.campaigns.filter((c) => c.status === "active").length },
     { id: "posts", label: "Gönderiler", icon: Send, count: pendingCount },
     { id: "changes", label: "Geçmiş", icon: FileClock },
   ]
@@ -365,6 +368,8 @@ export default function App() {
             )}
           </section>
         )}
+
+        {view === "campaigns" && <CampaignsView state={state} run={run} />}
 
         {view === "changes" && (
           <section className="max-w-4xl space-y-3">{state.runs.length === 0 ? <Empty>Henüz kontrol yapılmadı.</Empty> : state.runs.map((r) => <RunCard key={r.at} run={r} />)}</section>

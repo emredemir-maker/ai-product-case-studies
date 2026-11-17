@@ -21,9 +21,11 @@ export interface Recommendation {
   createdAt: string;
   decidedAt?: string;
   dismissReason?: string;
+  /** The campaign this task prepares the site for, when it came out of campaign planning. */
+  campaignId?: string;
 }
 
-export type NewRecommendation = Pick<Recommendation, "area" | "priority" | "title" | "why" | "action" | "evidence" | "agentPrompt">;
+export type NewRecommendation = Pick<Recommendation, "area" | "priority" | "title" | "why" | "action" | "evidence" | "agentPrompt" | "campaignId">;
 
 export class RecommendationStore {
   private readonly file: JsonList<Recommendation>;

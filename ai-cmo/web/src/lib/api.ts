@@ -1,8 +1,9 @@
+import type { Campaign, Material } from "../../../src/campaign.ts"
 import type { Draft } from "../../../src/drafts.ts"
 import type { Recommendation } from "../../../src/recommendations.ts"
 import type { Run } from "../../../src/review.ts"
 
-export type { Draft, Recommendation, Run }
+export type { Campaign, Draft, Material, Recommendation, Run }
 
 export interface DeskState {
   site: string | null
@@ -11,6 +12,11 @@ export interface DeskState {
   canPublish: boolean
   canReview: boolean
   review: { running: boolean; error: string | null }
+  canPlan: boolean
+  planning: { running: boolean; error: string | null }
+  campaigns: Campaign[]
+  /** Files in the materials folder that a campaign can draw on. */
+  materials: Material[]
   recommendations: Recommendation[]
   drafts: Draft[]
   runs: Run[]

@@ -75,6 +75,20 @@ Each check runs the audit tools, takes a snapshot of the site's pages (sitemap f
 
 "PLG 2.0" and "PLG 3.0" have no single agreed definition. `skills/plg-review/SKILL.md` states the one used here (product-led with sales and lifecycle assistance; AI-native products that are also usable by agents); edit it to match yours.
 
+### Campaigns
+
+A campaign turns a brief into one goal, one message, a schedule in phases, and every post written out, optionally built around files you supply such as feature catalogs.
+
+1. Put the files in the `materials/` folder (PDF, PNG/JPG/WebP/GIF, `.md`, `.txt`; up to 20 MB each). Other formats are ignored, so export slides or documents to PDF.
+2. In the interface open "Kampanyalar", describe the campaign, pick a start date and length, tick the files to use, and start planning. Or from the terminal:
+
+```bash
+npm run cmo -- materials
+npm run cmo -- campaign "Announce our six feature catalogs on the LinkedIn company page" --weeks 6 --materials "01-reports.pdf,02-churn.pdf"
+```
+
+The agent reads every selected file, orders them by what the audience needs first, and writes a launch post and a follow-up for each. A post that announces a file names it as its attachment, so you know what to share with it. Anything the campaign needs on the site first (a download page, a tracked link) is added to the recommendations list. Posts appear under the campaign in sharing order, with the same copy, "Paylaştım" and reject controls as elsewhere.
+
 ### Posts
 
 ```bash

@@ -134,7 +134,11 @@ The founder reads ${brand.language}. Write every recommendation field (title, wh
 Reply with a short note to the founder: what changed since the last review in two or three sentences, then what you recommend first and why. Keep it to a few short paragraphs; the recommendations themselves are already on the list, so do not walk through each one. The note is shown as plain text, so write prose without Markdown: no headings, bullet lists or bold.`;
 }
 
-function buildReviewTools(deps: ReviewDeps, origin: string, recommendationIds: string[]) {
+/**
+ * Tools for working on the watched site: the recommendation list and, when a site is configured,
+ * reading its pages. `campaignId` files new recommendations under a campaign.
+ */
+export function buildSiteTools(deps: { recommendations: RecommendationStore }, origin: string | null, recommendationIds: string[], campaignId?: () => string | null) {
   const listRecommendations = betaZodTool({
     name: "list_recommendations",
     description:
@@ -166,11 +170,13 @@ function buildReviewTools(deps: ReviewDeps, origin: string, recommendationIds: s
         .describe("A self-contained brief the founder pastes into a coding agent to make this change. Omit only when no code or content change is involved."),
     }),
     run: ({ agent_prompt, ...input }) => {
-      const rec = deps.recommendations.create({ ...input, agentPrompt: agent_prompt });
+      const rec = deps.recommendations.create({ ...input, agentPrompt: agent_prompt, campaignId: campaignId?.() ?? undefined });
       recommendationIds.push(rec.id);
       return JSON.stringify({ id: rec.id });
     },
   });
+
+  if (!origin) return [listRecommendations, saveRecommendation];
 
   const fetchPage = betaZodTool({
     name: "fetch_page",
@@ -265,7 +271,7 @@ export async function runReview(deps: ReviewDeps): Promise<Run> {
   const draftIds: string[] = [];
   const result = await runLoop(deps, {
     system: buildReviewSystemPrompt(deps.brand, deps.skills),
-    tools: [...buildReviewTools(deps, site.origin, recommendationIds), ...buildTools(deps, draftIds)],
+    tools: [...buildSiteTools(deps, site.origin, recommendationIds), ...buildTools(deps, draftIds)],
     user: renderReviewInput(site, previous, diff, sources, commits, problems),
   });
   const complete = result.stopReason === "end_turn";

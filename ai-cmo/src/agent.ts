@@ -65,7 +65,13 @@ Reply with a short summary for the reviewer: the plan in two or three sentences,
 
 const isoDateTime = z.iso.datetime({ offset: true });
 
-export function buildTools(deps: AgentDeps, savedIds: string[] = []) {
+/** Set while a campaign is being planned: its id once defined, and the files a post may attach. */
+export interface CampaignContext {
+  id: () => string | null;
+  materials: string[];
+}
+
+export function buildTools(deps: AgentDeps, savedIds: string[] = [], campaign?: CampaignContext) {
   const { drafts, postiz, skills } = deps;
 
   const listChannels = betaZodTool({
@@ -138,6 +144,7 @@ export function buildTools(deps: AgentDeps, savedIds: string[] = []) {
       scheduled_at: isoDateTime.describe("When the post should go out, ISO 8601 with timezone offset, in the future"),
       rationale: z.string().min(1).describe("For the reviewer: why this post, on this channel, at this time"),
       settings: z.record(z.string(), z.unknown()).optional().describe("Provider-specific settings, following the schema from get_channel_rules"),
+      attachment: z.string().optional().describe("File name of a material to attach when the post is shared, such as the catalog it announces. Only names from the campaign's materials list."),
     }),
     run: async (input) => {
       if (new Date(input.scheduled_at).getTime() <= Date.now()) {
@@ -152,6 +159,10 @@ export function buildTools(deps: AgentDeps, savedIds: string[] = []) {
           return `Error: content is ${input.content.length} characters; the limit for this channel is ${maxLength}. Shorten it and save again.`;
         }
       }
+      if (campaign && !campaign.id()) return "Error: call define_campaign before saving posts, so they are filed under the campaign.";
+      if (input.attachment && !campaign?.materials.includes(input.attachment)) {
+        return `Error: "${input.attachment}" is not one of the available materials${campaign?.materials.length ? `: ${campaign.materials.join(", ")}` : ""}.`;
+      }
       const draft = drafts.create({
         platform: input.platform.toLowerCase(),
         integrationId: input.channel_id,
@@ -159,6 +170,8 @@ export function buildTools(deps: AgentDeps, savedIds: string[] = []) {
         scheduledAt: new Date(input.scheduled_at).toISOString(),
         rationale: input.rationale,
         settings: input.settings,
+        campaignId: campaign?.id() ?? undefined,
+        attachment: input.attachment,
       });
       savedIds.push(draft.id);
       return JSON.stringify({ id: draft.id, status: draft.status });

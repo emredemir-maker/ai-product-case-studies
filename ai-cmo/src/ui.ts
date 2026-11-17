@@ -2,6 +2,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import type { Auth } from "./auth.ts";
+import { type Campaign, CampaignInputSchema, type CampaignStore, listMaterials } from "./campaign.ts";
 import type { DraftStore } from "./drafts.ts";
 import type { PostizClient } from "./postiz.ts";
 import { approveDraft, markDraftShared, rejectDraft } from "./publish.ts";
@@ -19,6 +20,12 @@ export interface UiDeps {
   site: string | null;
   /** Starts a review. Absent when the review cannot run (no watch file). */
   review?: () => Promise<Run>;
+  /** Campaign planning. Absent when it cannot run (no brand file). */
+  campaigns?: {
+    store: CampaignStore;
+    materialsDir: string;
+    plan: (input: unknown) => Promise<Campaign>;
+  };
   /** Password login. Required whenever the interface is reachable from other machines. */
   auth?: Auth;
   /** The address people open, e.g. https://cmo.example.com. Absent means localhost only. */
@@ -92,8 +99,32 @@ export function createUiServer(deps: UiDeps): http.Server {
       });
   };
 
+  const planning = { running: false, error: null as string | null };
+
+  const startCampaign = (body: Record<string, unknown>) => {
+    if (!deps.campaigns) throw new HttpError(400, "Set up brand.json to plan campaigns.");
+    if (planning.running) throw new HttpError(409, "A campaign is already being planned.");
+    // Reject a bad form before starting, so the person sees the reason right away.
+    const input = CampaignInputSchema.safeParse(body);
+    if (!input.success) throw new HttpError(400, input.error.issues.map((i) => i.message).join("; "));
+    planning.running = true;
+    planning.error = null;
+    deps.campaigns
+      .plan(input.data)
+      .catch((error: unknown) => {
+        planning.error = error instanceof Error ? error.message : String(error);
+      })
+      .finally(() => {
+        planning.running = false;
+      });
+  };
+
   const state = () => ({
     site: deps.site,
+    canPlan: Boolean(deps.campaigns),
+    planning,
+    campaigns: deps.campaigns?.store.list().reverse() ?? [],
+    materials: deps.campaigns ? listMaterials(deps.campaigns.materialsDir) : [],
     authEnabled: deps.auth !== undefined,
     canPublish: deps.postiz !== null,
     canReview: Boolean(deps.review),
@@ -109,6 +140,16 @@ export function createUiServer(deps: UiDeps): http.Server {
 
     if (pathname === "/api/review") {
       startReview();
+      return state();
+    }
+    if (pathname === "/api/campaigns") {
+      startCampaign(body);
+      return state();
+    }
+    const campaign = /^\/api\/campaigns\/([0-9a-f]+)$/.exec(pathname);
+    if (campaign && deps.campaigns) {
+      if (body.status !== "active" && body.status !== "archived") throw new HttpError(400, "Unknown status");
+      deps.campaigns.store.update(campaign[1]!, { status: body.status });
       return state();
     }
     const rec = /^\/api\/recommendations\/([0-9a-f]+)$/.exec(pathname);

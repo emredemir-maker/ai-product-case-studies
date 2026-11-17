@@ -23,9 +23,13 @@ export interface Draft {
   rejectionReason?: string;
   /** Result returned by Postiz when the draft was sent. */
   postiz?: unknown;
+  /** The campaign this post belongs to, when it was written as part of one. */
+  campaignId?: string;
+  /** File in the materials folder to attach when sharing, e.g. a catalog. */
+  attachment?: string;
 }
 
-export type NewDraft = Pick<Draft, "platform" | "integrationId" | "content" | "scheduledAt" | "rationale" | "settings">;
+export type NewDraft = Pick<Draft, "platform" | "integrationId" | "content" | "scheduledAt" | "rationale" | "settings" | "campaignId" | "attachment">;
 
 /** The review queue of posts. */
 export class DraftStore {

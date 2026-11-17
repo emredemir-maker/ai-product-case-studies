@@ -34,7 +34,7 @@ const DIFF_FIELD: Record<string, string> = {
 }
 export const diffField = (field: string) => DIFF_FIELD[field] ?? field
 
-const PLATFORM: Record<string, string> = { linkedin: "LinkedIn", x: "X", youtube: "YouTube", tiktok: "TikTok", instagram: "Instagram", facebook: "Facebook", threads: "Threads", bluesky: "Bluesky" }
+const PLATFORM: Record<string, string> = { email: "E-posta", "linkedin-page": "LinkedIn sayfası", linkedin: "LinkedIn", x: "X", youtube: "YouTube", tiktok: "TikTok", instagram: "Instagram", facebook: "Facebook", threads: "Threads", bluesky: "Bluesky" }
 export const platformName = (id: string) => PLATFORM[id] ?? id.charAt(0).toLocaleUpperCase("tr") + id.slice(1)
 
 export const day = (iso: string) => new Date(iso).toLocaleDateString("tr-TR", { day: "numeric", month: "short" })

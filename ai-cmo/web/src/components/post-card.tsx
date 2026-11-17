@@ -1,4 +1,4 @@
-import { Check, Copy } from "lucide-react"
+import { Check, Copy, Paperclip } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { ReasonForm } from "@/components/reason-form"
@@ -55,6 +55,12 @@ export function PostCard(props: { draft: Draft; canPublish: boolean; onApprove: 
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="max-w-[40em] break-words whitespace-pre-wrap">{draft.content}</p>
+        {draft.attachment && (
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            <Paperclip className="size-4" />
+            Bu gönderiyle paylaşılacak dosya: {draft.attachment}
+          </p>
+        )}
         <p className="text-sm text-muted-foreground">Neden bu gönderi: {draft.rationale}</p>
       </CardContent>
       {pending && (
